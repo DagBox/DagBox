@@ -5,6 +5,7 @@ is currently in very early development.
 
 # Dependencies
 
-* nanomsg
+* zeromq
+* boost
 * msgpack
 * lmdb
