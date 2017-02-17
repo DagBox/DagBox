@@ -1,6 +1,8 @@
 # Created from a combination of files from here:
 # https://github.com/github/gitignore
 
+# Generated docs
+docs/
 
 # Prerequisites
 *.d

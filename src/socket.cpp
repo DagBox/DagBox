@@ -10,7 +10,7 @@ auto socket::recv_multimsg() -> message_stream::pull_type
                 zmq::message_t message;
                 // recv in blocking mode should never give false
                 assert(recv(&message) == true);
-                has_more = getsockopt<int64_t>(ZMQ_RCVMORE) == 1;
+                has_more = message.more();
                 sink(message);
             }
         });
