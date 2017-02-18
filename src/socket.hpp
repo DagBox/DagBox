@@ -1,31 +1,20 @@
-#pragma omp once
+#pragma once
 
+#include <vector>
 #include <zmq.hpp>
-#include <boost/coroutine2/coroutine.hpp>
 
 
 /*! \file socket.hpp
  * Extensions on ZeroMQ's socket.
  *
  * We extend socket to be able to easily send and recieve multi-part
- * messages by creating a stream of message parts.
+ * messages.
  */
 
-
-
-/*! \brief Type representing a stream of message parts that make up a
- *  single message.
- *
- * If you want to recieve messages, use `message_stream::pull_type`.
- * To send messages, use `message_stream::push_type`. To see an
- * example on how to use this, see
- * [socket::recv_multimsg](\ref socket::recv_multimsg).
- */
-typedef boost::coroutines2::coroutine<zmq::message_t> message_stream;
 
 
 /*! A ZeroMQ socket that can recieve messages containing multiple
- *  parts as a stream.
+ *  parts.
  */
 class socket : public zmq::socket_t
 {
@@ -35,9 +24,22 @@ public:
 
     /*! \brief Recieve a message that has multiple parts as a stream.
      */
-    auto recv_multimsg() -> message_stream::pull_type;
+    auto recv_multimsg() -> std::vector<zmq::message_t>;
 
     /*! \brief Send a message that has multiple parts.
      */
-    auto send_multimsg(message_stream::pull_type &) -> void;
+    template <class iterator>
+    auto send_multimsg(iterator first, iterator last) -> void
+    {
+        while (first != last) {
+            auto part = std::move(*first);
+            ++first;
+            if (first != last) { // More parts to send
+                send(part, ZMQ_SNDMORE);
+            } else {
+                send(part);
+            }
+        }
+    }
+
 };

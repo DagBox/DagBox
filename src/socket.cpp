@@ -1,32 +1,16 @@
 #include "socket.hpp"
 
 
-auto socket::recv_multimsg() -> message_stream::pull_type
+auto socket::recv_multimsg() -> std::vector<zmq::message_t>
 {
-    return message_stream::pull_type(
-        [&](message_stream::push_type & sink){
-            bool has_more = true;
-            while (has_more) {
-                zmq::message_t message;
-                // recv in blocking mode should never give false
-                assert(recv(&message) == true);
-                has_more = message.more();
-                sink(message);
-            }
-        });
-}
-
-
-
-auto socket::send_multimsg(message_stream::pull_type & parts) -> void
-{
-    while (parts) {
-        auto part = parts.get();
-        parts();
-        if (parts) { // More parts to send
-            send(part, ZMQ_SNDMORE);
-        } else {
-            send(part);
-        }
+    std::vector<zmq::message_t> messages;
+    bool has_more = true;
+    while (has_more) {
+        zmq::message_t message;
+        // recv in blocking mode should never give false
+        assert(recv(&message) == true);
+        has_more = message.more();
+        messages.push_back(std::move(message));
     }
+    return messages;
 }

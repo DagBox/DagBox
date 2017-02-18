@@ -7,9 +7,13 @@ using std::size_t;
 
 #include <zmq.hpp>
 #include "socket.hpp"
+#include "message.hpp"
 
 #include <msgpack.hpp>
 #include <msgpack/sbuffer.hpp>
+
+#include <boost/coroutine2/coroutine.hpp>
+typedef boost::coroutines2::coroutine<zmq::message_t> message_stream;
 
 
 auto main(void) -> int
@@ -46,16 +50,15 @@ auto main(void) -> int
             hello = zmq::message_t(s.data(), s.size());
             sink(hello);
         });
-    alice.send_multimsg(source);
+    alice.send_multimsg<message_stream::pull_type::iterator>(begin(source), end(source));
 
     {
         auto recv_stream = bob.recv_multimsg();
 
-        auto msg = recv_stream.get();
+        auto & msg = recv_stream[0];
         msgpack::object_handle object_handle = msgpack::unpack((char*)msg.data(), msg.size());
         auto object = object_handle.get();
         std::cout << object << std::endl;
-        recv_stream();
 
         for (auto & s : recv_stream) {
             std::cout << std::string((char*)s.data()) << std::endl;

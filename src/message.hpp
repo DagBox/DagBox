@@ -1,4 +1,4 @@
-#pragma omp once
+#pragma once
 
 #include <vector>
 #include <boost/variant.hpp>
@@ -11,14 +11,30 @@
 
 
 
-/*! \brief Used to declare an exception class.
+/*! \brief Declare an exception class.
  *
- * Declares an exception class with the name
+ * Declares an exception class with the name `name` that inherits from
+ * `base` class. The declared class will retain all constructors of
+ * the base class.
  */
 #define EXCEPTION(name, base)                        \
     class name                                       \
         : public base                                \
     {using base::base;}
+
+
+
+/*! \brief Declare a member method for accessing a message part.
+ *
+ * This macro should only be called the message::header class, or the
+ * classes that inherit from that class.
+ */
+#define MSG_PART(name, index)                    \
+    auto inline name() -> zmq::message_t & \
+    {                                            \
+        return messages[index];                  \
+    }
+
 
 
 
@@ -49,13 +65,10 @@ namespace message
          */
         EXCEPTION(malformed, runtime_error);
 
-        /*! \brief A message with an invalid type was recieved.
-         *
-         * This is not an exception that is normally
-         * expected. Recieveing this message suggests that the sender
-         * is broken.
+        /*! \brief A message using an unsupported version of the
+         *  protocol was recieved.
          */
-        EXCEPTION(invalid_type, runtime_error);
+        EXCEPTION(unsupported_version, runtime_error);
     }
 
 
@@ -68,6 +81,11 @@ namespace message
         request = 0x04,
         reply = 0x05,
     };
+    namespace detail
+    {
+        auto const type_upper_bound = static_cast<char>(type::reply);
+        auto const type_lower_bound = static_cast<char>(type::registration);
+    }
 
 
     /*! \brief The header parts of the message which is common in all
@@ -77,24 +95,34 @@ namespace message
     class header {
         auto static make_protocol_part() -> zmq::message_t;
         auto static make_type_part(enum type type_) -> zmq::message_t;
+
+        /*! Validate the header object, throw an exception if it is invalid. */
+        auto validate_or_throw() -> void;
     protected:
-        zmq::message_t init_part;
-        zmq::message_t protocol_part;
-        zmq::message_t type_part;
+        std::vector<zmq::message_t> messages;
+
+        MSG_PART(init_part, 0);
+        MSG_PART(protocol_part, 1);
+        MSG_PART(type_part, 2);
     public:
         /*! \brief Create a new message header with the given type. */
         header(enum type type_);
 
-        /*! \brief Read a message header from a stream of message
-         * parts.
+        /*! \brief Read a message header from a collection of messages.
          *
-         * This constructor accepts anything that can be iterated. The
-         * iterator should return message parts with type
-         * `zmq::message_t`. A suitable iterator can be created using
-         * [socket.recv_multimsg()][\ref socket.recv_multimsg()].
+         * ```
+         * header h(socket.recv_multimsg());
+         * ```
+         *
+         * \returns The header object.
+         *
+         * \throws exception::malformed The message is not in the
+         * DagBox protocol format.
+         *
+         * \throws exception::unsupported_version The message comes
+         * from an unsupported version of the DagBox protocol.
          */
-        template <class iterator>
-        header(iterator it);
+        header(std::vector<zmq::message_t> && messages);
 
         /*! \brief Get the type of the message.
          *
@@ -116,9 +144,9 @@ namespace message
     class reply;
 
 
-    /*! \brief Builds a message from a stream of message parts.
+    /*! \brief Builds a message from a collection of message parts.
      */
-    auto make(message_stream::pull_type parts)
+    auto make(std::vector<zmq::message_t> && messages)
         -> boost::variant<registration,
                           ping,
                           pong,
@@ -127,7 +155,8 @@ namespace message
 
 
     class registration : public header {
-        zmq::message_t service_part;
+    protected:
+        MSG_PART(service_part, 3);
     public:
         enum type const type = type::registration;
     };
@@ -143,7 +172,8 @@ namespace message
     };
 
     class request : public header {
-        zmq::message_t service_part;
+    protected:
+        MSG_PART(service_part, 3);
         boost::optional<zmq::message_t> client_part;
         zmq::message_t client_delimiter_part;
         std::vector<zmq::message_t> metadata_parts;
