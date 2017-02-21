@@ -24,20 +24,6 @@
 
 
 
-/*! \brief Declare a member method for accessing a message part.
- *
- * This macro should only be called the message::header class, or the
- * classes that inherit from that class.
- */
-#define MSG_PART(name, index)                    \
-    auto inline name() -> zmq::message_t & \
-    {                                            \
-        return messages[index];                  \
-    }
-
-
-
-
 /*! \brief Helpers for handling messages.
  */
 namespace message
@@ -98,15 +84,19 @@ namespace message
 
         /*! Validate the header object, throw an exception if it is invalid. */
         auto validate_or_throw() -> void;
-    protected:
-        std::vector<zmq::message_t> messages;
 
-        MSG_PART(init_part, 0);
-        MSG_PART(protocol_part, 1);
-        MSG_PART(type_part, 2);
+        /*! Move the message parts into the object.
+         */
+        header(zmq::message_t && init_part,
+               zmq::message_t && protocol_part,
+               zmq::message_t && type_part);
+    protected:
+        zmq::message_t init_part;
+        zmq::message_t protocol_part;
+        zmq::message_t type_part;
     public:
         /*! \brief Create a new message header with the given type. */
-        header(enum type type_);
+        auto static make(enum type type_) -> header;
 
         /*! \brief Read a message header from a collection of messages.
          *
@@ -122,7 +112,7 @@ namespace message
          * \throws exception::unsupported_version The message comes
          * from an unsupported version of the DagBox protocol.
          */
-        header(std::vector<zmq::message_t> && messages);
+        auto static make(std::vector<zmq::message_t> && messages) -> header;
 
         /*! \brief Get the type of the message.
          *
@@ -146,7 +136,7 @@ namespace message
 
     /*! \brief Builds a message from a collection of message parts.
      */
-    auto make(std::vector<zmq::message_t> && messages)
+    auto read(std::vector<zmq::message_t> && messages)
         -> boost::variant<registration,
                           ping,
                           pong,
@@ -156,31 +146,62 @@ namespace message
 
     class registration : public header {
     protected:
-        MSG_PART(service_part, 3);
+        zmq::message_t service_part;
+
+        registration(zmq::message_t && init_part,
+                     zmq::message_t && protocol_part,
+                     zmq::message_t && type_part,
+                     zmq::message_t && service_part);
     public:
-        enum type const type = type::registration;
+        /*! Build a registration message that registers for
+         *  `service_name`.
+         */
+        auto static make(std::string service_name) -> registration;
+
+        /*! Build a registration message from a read message.
+         */
+        auto static make(header && h) -> registration;
     };
 
     class ping : public header {
     public:
-        enum type const type = type::ping;
+        auto static make() -> ping;
+
+        auto static make(header && h) -> ping;
     };
 
     class pong : public header {
     public:
-        enum type const type = type::pong;
+        auto static make(ping && p) -> pong;
+
+        auto static make(header && h) -> pong;
     };
 
     class request : public header {
     protected:
-        MSG_PART(service_part, 3);
+        zmq::message_t service_part;
         boost::optional<zmq::message_t> client_part;
         zmq::message_t client_delimiter_part;
         std::vector<zmq::message_t> metadata_parts;
         zmq::message_t metadata_delimiter_part;
         std::vector<zmq::message_t> data_parts;
+
+        request(zmq::message_t && init_part,
+                zmq::message_t && protocol_part,
+                zmq::message_t && type_part,
+                zmq::message_t && service_part,
+                boost::optional<zmq::message_t> && client_part,
+                zmq::message_t && client_delimiter_part,
+                std::vector<zmq::message_t> && metadata_parts,
+                zmq::message_t && metadata_delimiter_part,
+                std::vector<zmq::message_t> && data_parts);
     public:
-        enum type const type = type::request;
+        auto static make(std::string service,
+                         std::vector<zmq::message_t> && metadata,
+                         std::vector<zmq::message_t> && data)
+            -> request;
+
+        auto static make(header && h) -> request;
     };
 
     class reply : public header {
@@ -189,8 +210,19 @@ namespace message
         std::vector<zmq::message_t> metadata_parts;
         zmq::message_t metadata_delimiter_part;
         std::vector<zmq::message_t> data_parts;
+
+        reply(zmq::message_t && init_part,
+              zmq::message_t && protocol_part,
+              zmq::message_t && type_part,
+              boost::optional<zmq::message_t> && client_part,
+              zmq::message_t && client_delimiter_part,
+              std::vector<zmq::message_t> && metadata_parts,
+              zmq::message_t && metadata_delimiter_part,
+              std::vector<zmq::message_t> && data_parts);
     public:
-        enum type const type = type::reply;
+        auto static make(request && r) -> reply;
+
+        auto static make(header && h) -> reply;
     };
 
 };
