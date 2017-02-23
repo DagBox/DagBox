@@ -165,11 +165,11 @@ namespace msg
         auto static make(enum types type_) noexcept -> header;
 
         template <class iterator>
-        auto static read(iterator & iter) -> header {
-            auto sender       = read_optional(iter);
-            auto sender_delim = read_part(iter);
-            auto protocol     = read_part(iter);
-            auto type_        = read_part(iter);
+        auto static read(iterator & iter, iterator & end) -> header {
+            auto sender       = read_optional(iter, end);
+            auto sender_delim = read_part(iter, end);
+            auto protocol     = read_part(iter, end);
+            auto type_        = read_part(iter, end);
 
             header h(sender,
                      sender_delim,
@@ -199,7 +199,8 @@ namespace msg
             -> registration;
 
         template <class iterator>
-        auto static read(header && h, iterator & iter) -> registration {
+        auto static read(header && h, iterator & iter, iterator & end)
+            -> registration {
             auto service = read_optional(iter);
 
             return registration(h, service);
@@ -218,7 +219,8 @@ namespace msg
         auto static make() noexcept -> ping;
 
         template <class iterator>
-        auto static read(header && h, iterator & iter) -> ping {
+        auto static read(header && h, iterator & iter, iterator & end)
+            -> ping {
             return ping(std::move(h));
         }
 
@@ -237,7 +239,8 @@ namespace msg
         auto static make(ping && p) noexcept -> pong;
 
         template <class iterator>
-        auto static read(header && h, iterator & iter_) -> pong {
+        auto static read(header && h, iterator & iter, iterator & end)
+            -> pong {
             return pong(std::move(h));
         }
 
@@ -269,7 +272,20 @@ namespace msg
             -> request;
         
         template <class iterator>
-        auto static read(header && head, iterator & iter) -> request;
+        auto static read(header && head,
+                         iterator & iter,
+                         iterator & end)
+            -> request {
+            auto service            = read_part(iter, end);
+            auto client             = read_optional(iter, end);
+            auto client_delimiter   = read_part(iter, end);
+            auto metadata           = read_many(iter, end);
+            auto metadata_delimiter = read_part(iter, end);
+            auto data               = read_many(iter, end);
+
+            return request(head, service, client, client_delimiter,
+                           metadata, metadata_delimiter, data);
+        }
 
         enum types static const type = types::request;
     };
@@ -293,32 +309,44 @@ namespace msg
         auto static make(request && r) -> reply;
 
         template <class iterator>
-        auto static read(header && head, iterator & iter) -> reply;
+        auto static read(header && head,
+                         iterator & iter,
+                         iterator & end)
+            -> reply {
+            auto client             = read_optional(iter, end);
+            auto client_delimiter   = read_part(iter, end);
+            auto metadata           = read_many(iter, end);
+            auto metadata_delimiter = read_part(iter, end);
+            auto data               = read_many(iter, end);
+
+            return reply(head, client, client_delimiter,
+                         metadata, metadata_delimiter, data);
+        }
 
         enum types static const type = types::reply;
     };
 
 
     template <class iterator>
-    auto read(iterator & iter)
+    auto read(iterator & iter, iterator & end)
         -> any_message {
-        header h = header::read(iter);
+        header h = header::read(iter, end);
 
         switch (h.type()) {
         case types::ping:
-            return ping::read(h, iter);
+            return ping::read(h, iter, end);
             break;
         case types::pong:
-            return pong::read(h, iter);
+            return pong::read(h, iter, end);
             break;
         case types::registration:
-            return registration::read(h, iter);
+            return registration::read(h, iter, end);
             break;
         case types::request:
-            return request::read(h, iter);
+            return request::read(h, iter, end);
             break;
         case types::reply:
-            return reply::read(h, iter);
+            return reply::read(h, iter, end);
             break;
         }
     }
