@@ -26,7 +26,7 @@
 
 /*! \brief Helpers for handling messages.
  */
-namespace message
+namespace msg
 {
     namespace protocol
     {
@@ -59,7 +59,7 @@ namespace message
 
 
     /*! Types of messages. */
-    enum class type
+    enum class types
     {
         registration = 0x01,
         ping = 0x02,
@@ -69,62 +69,25 @@ namespace message
     };
     namespace detail
     {
-        auto const type_upper_bound = static_cast<char>(type::reply);
-        auto const type_lower_bound = static_cast<char>(type::registration);
+        auto const type_upper_bound = static_cast<char>(types::reply);
+        auto const type_lower_bound = static_cast<char>(types::registration);
     }
 
 
-    /*! \brief The header parts of the message which is common in all
-     * message types.
-     *
-     */
-    class header {
-        auto static make_protocol_part() -> zmq::message_t;
-        auto static make_type_part(enum type type_) -> zmq::message_t;
+    typedef zmq::message_t part;
+    typedef boost::optional<part> optional_part;
+    typedef std::vector<part> many_parts;
 
-        /*! Validate the header object, throw an exception if it is invalid. */
-        auto validate_or_throw() -> void;
 
-        /*! Move the message parts into the object.
-         */
-        header(zmq::message_t && init_part,
-               zmq::message_t && protocol_part,
-               zmq::message_t && type_part);
-    protected:
-        zmq::message_t init_part;
-        zmq::message_t protocol_part;
-        zmq::message_t type_part;
-    public:
-        /*! \brief Create a new message header with the given type. */
-        auto static make(enum type type_) -> header;
+    template <class iterator>
+    auto read_part(iterator & iter) -> part;
 
-        /*! \brief Read a message header from a collection of messages.
-         *
-         * ```
-         * header h(socket.recv_multimsg());
-         * ```
-         *
-         * \returns The header object.
-         *
-         * \throws exception::malformed The message is not in the
-         * DagBox protocol format.
-         *
-         * \throws exception::unsupported_version The message comes
-         * from an unsupported version of the DagBox protocol.
-         */
-        auto static make(std::vector<zmq::message_t> && messages) -> header;
+    template <class iterator>
+    auto read_optional(iterator & iter) -> optional_part;
 
-        /*! \brief Get the type of the message.
-         *
-         * If the recieved message has an invalid type, this will
-         * throw a [exception::malformed][\ref exception::malformed]
-         * exception.
-         */
-        auto type() const -> enum type;
+    template <class iterator>
+    auto read_many(iterator & iter) -> many_parts;
 
-        /*! \brief Change the type of the message. */
-        auto type(enum type new_type) noexcept -> void;
-    };
 
     // Specialized message types
     class registration;
@@ -134,95 +97,191 @@ namespace message
     class reply;
 
 
-    /*! \brief Builds a message from a collection of message parts.
-     */
-    auto read(std::vector<zmq::message_t> && messages)
-        -> boost::variant<registration,
-                          ping,
-                          pong,
-                          request,
-                          reply>;
+    typedef boost::variant<
+        registration,
+        ping,
+        pong,
+        request,
+        reply
+        > any_message;
 
 
-    class registration : public header {
-    protected:
-        zmq::message_t service_part;
+    class header
+    {
+        auto static make_protocol_part() noexcept -> part;
 
-        registration(zmq::message_t && init_part,
-                     zmq::message_t && protocol_part,
-                     zmq::message_t && type_part,
-                     zmq::message_t && service_part);
+        auto static make_type_part(enum types type_) noexcept -> part;
+
+        optional_part sender;
+        part sender_delimiter;
+        part protocol;
+        part type_;
+
+        auto validate() -> void;
+
+        header(optional_part && sender,
+               part && sender_delimiter,
+               part && protocol,
+               part && type_);
     public:
-        /*! Build a registration message that registers for
-         *  `service_name`.
-         */
-        auto static make(std::string service_name) -> registration;
+        auto static make(enum types type_) noexcept -> header;
 
-        /*! Build a registration message from a read message.
-         */
-        auto static make(header && h) -> registration;
+        template <class iterator>
+        auto static read(iterator & iter) -> header {
+            auto sender       = read_optional(iter);
+            auto sender_delim = read_part(iter);
+            auto protocol     = read_part(iter);
+            auto type_        = read_part(iter);
+
+            header h(sender,
+                     sender_delim,
+                     protocol,
+                     type_);
+
+            h.validate();
+
+            return h;
+        }
+
+        auto type() const noexcept -> enum types;
+
+        auto type(enum types new_type) noexcept -> void;
     };
 
-    class ping : public header {
-    public:
-        auto static make() -> ping;
 
-        auto static make(header && h) -> ping;
+    class registration
+    {
+        header head;
+        optional_part service;
+
+        registration(header && head,
+                     optional_part && service);
+    public:
+        auto static make(std::string const & service_name) noexcept
+            -> registration;
+
+        template <class iterator>
+        auto static read(header && h, iterator & iter) -> registration {
+            auto service = read_optional(iter);
+
+            return registration(h, service);
+        }
+
+        enum types static const type = types::registration;
     };
 
-    class pong : public header {
-    public:
-        auto static make(ping && p) -> pong;
 
-        auto static make(header && h) -> pong;
+    class ping
+    {
+        header head;
+
+        ping(header && head);
+    public:
+        auto static make() noexcept -> ping;
+
+        template <class iterator>
+        auto static read(header && h, iterator & iter) -> ping {
+            return ping(std::move(h));
+        }
+
+        enum types static const type = types::ping;
+
+        friend class pong;
     };
 
-    class request : public header {
-    protected:
-        zmq::message_t service_part;
-        boost::optional<zmq::message_t> client_part;
-        zmq::message_t client_delimiter_part;
-        std::vector<zmq::message_t> metadata_parts;
-        zmq::message_t metadata_delimiter_part;
-        std::vector<zmq::message_t> data_parts;
 
-        request(zmq::message_t && init_part,
-                zmq::message_t && protocol_part,
-                zmq::message_t && type_part,
-                zmq::message_t && service_part,
-                boost::optional<zmq::message_t> && client_part,
-                zmq::message_t && client_delimiter_part,
-                std::vector<zmq::message_t> && metadata_parts,
-                zmq::message_t && metadata_delimiter_part,
-                std::vector<zmq::message_t> && data_parts);
+    class pong
+    {
+        header head;
+
+        pong(header && head);
     public:
-        auto static make(std::string service,
-                         std::vector<zmq::message_t> && metadata,
-                         std::vector<zmq::message_t> && data)
+        auto static make(ping && p) noexcept -> pong;
+
+        template <class iterator>
+        auto static read(header && h, iterator & iter_) -> pong {
+            return pong(std::move(h));
+        }
+
+        enum types static const type = types::pong;
+    };
+
+
+    class request
+    {
+        header        head;
+        part          service;
+        optional_part client;
+        part          client_delimiter;
+        many_parts    metadata;
+        part          metadata_delimiter;
+        many_parts    data;
+
+        request(header        && head,
+                part          && service,
+                optional_part && client,
+                part          && client_delimiter,
+                many_parts    && metadata,
+                part          && metadata_delimiter,
+                many_parts    && data);
+    public:
+        auto static make(std::string const & service_name,
+                         many_parts && metadata_parts,
+                         many_parts && data_parts)
             -> request;
+        
+        template <class iterator>
+        auto static read(header && head, iterator & iter) -> request;
 
-        auto static make(header && h) -> request;
+        enum types static const type = types::request;
     };
 
-    class reply : public header {
-        boost::optional<zmq::message_t> client_part;
-        zmq::message_t client_delimiter_part;
-        std::vector<zmq::message_t> metadata_parts;
-        zmq::message_t metadata_delimiter_part;
-        std::vector<zmq::message_t> data_parts;
 
-        reply(zmq::message_t && init_part,
-              zmq::message_t && protocol_part,
-              zmq::message_t && type_part,
-              boost::optional<zmq::message_t> && client_part,
-              zmq::message_t && client_delimiter_part,
-              std::vector<zmq::message_t> && metadata_parts,
-              zmq::message_t && metadata_delimiter_part,
-              std::vector<zmq::message_t> && data_parts);
+    class reply
+    {
+        optional_part client;
+        part          client_delimiter;
+        many_parts    metadata;
+        part          metadata_delimiter;
+        many_parts    data;
+
+        reply(header        && head,
+              optional_part && client,
+              part          && client_delimiter,
+              many_parts    && metadata,
+              part          && metadata_delimiter,
+              many_parts    && data);
     public:
         auto static make(request && r) -> reply;
 
-        auto static make(header && h) -> reply;
+        template <class iterator>
+        auto static read(header && head, iterator & iter) -> reply;
+
+        enum types static const type = types::reply;
     };
 
+
+    template <class iterator>
+    auto read(iterator & iter)
+        -> any_message {
+        header h = header::read(iter);
+
+        switch (h.type()) {
+        case types::ping:
+            return ping::read(h, iter);
+            break;
+        case types::pong:
+            return pong::read(h, iter);
+            break;
+        case types::registration:
+            return registration::read(h, iter);
+            break;
+        case types::request:
+            return request::read(h, iter);
+            break;
+        case types::reply:
+            return reply::read(h, iter);
+            break;
+        }
+    }
 };
