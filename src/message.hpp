@@ -80,13 +80,51 @@ namespace msg
 
 
     template <class iterator>
-    auto read_part(iterator & iter) -> part;
+    auto read_part(iterator & iter, iterator & end) -> part {
+        if (iter == end) {
+            throw exception::malformed("Expected message part is missing");
+        }
+        return *(iter++);
+    }
 
     template <class iterator>
-    auto read_optional(iterator & iter) -> optional_part;
+    auto read_optional(iterator & iter, iterator & end) -> optional_part {
+        // If there are no parts left, no optional part
+        if (iter == end) {
+            return boost::none;
+        }
+        // If the first part is empty, no optional part
+        part first = *iter;
+        if (first.size() == 0) {
+            return boost::none;
+        }
+        // If the first part is not empty, and there are no parts
+        // left, then we found the optional part
+        ++iter;
+        if (iter == end) {
+            return first;
+        }
+        // If the first part is not empty and the second part is, then
+        // we found the optional part
+        part second = *iter;
+        if (second.size() == 0) {
+            return first;
+        }
+
+        // If both the first and the second part are not empty, then
+        // we weren't sent an optional part at all
+        throw exception::malformed("Expected optional message part "
+                                   "is malformed");
+    }
 
     template <class iterator>
-    auto read_many(iterator & iter) -> many_parts;
+    auto read_many(iterator & iter, iterator & end) -> many_parts {
+        many_parts parts;
+        while (iter != end && (*iter).size() != 0) {
+            parts.push_back(*(iter++));
+        }
+        return parts;
+    }
 
 
     // Specialized message types
