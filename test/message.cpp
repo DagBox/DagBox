@@ -108,15 +108,26 @@ go_bandit([](){
     describe("request messages", [](){
         it("can be created", [](){
             auto req = msg::request::make("service",
-                                          msg_vec({"meta", "data"}),
-                                          msg_vec({}));
+                                          msg_vec({"meta"}),
+                                          msg_vec({"data", "more data"}));
+
+            AssertThat(req.metadata(), HasLength(1));
+            AssertThat(msg2str(req.metadata()[0]), Equals("meta"));
+
+            AssertThat(req.data(), HasLength(2));
+            AssertThat(msg2str(req.data()[0]), Equals("data"));
+            AssertThat(msg2str(req.data()[1]), Equals("more data"));
         });
 
         it("can be turned into reply messages", [](){
             auto req = msg::request::make("service",
-                                          msg_vec({"meta", "data"}),
-                                          msg_vec({}));
+                                          msg_vec({"meta"}),
+                                          msg_vec({"data"}));
             auto rep = msg::reply::make(std::move(req));
+
+            // Make sure that metadata survives the conversion
+            AssertThat(rep.metadata(), HasLength(1));
+            AssertThat(msg2str(rep.metadata()[0]), Equals("meta"));
         });
     });
 });

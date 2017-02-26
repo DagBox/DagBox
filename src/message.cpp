@@ -147,9 +147,9 @@ request::request(header        && head,
       service(std::move(service)),
       client(std::move(client)),
       client_delimiter(std::move(client_delimiter)),
-      metadata(std::move(metadata)),
+      metadata_(std::move(metadata)),
       metadata_delimiter(std::move(metadata_delimiter)),
-      data(std::move(data))
+      data_(std::move(data))
 {}
 
 
@@ -169,6 +169,7 @@ auto request::make(std::string const & service_name,
 }
 
 
+
 //////////////////// Reply
 
 reply::reply(header        && head,
@@ -180,9 +181,9 @@ reply::reply(header        && head,
     : head(std::move(head)),
       client(std::move(client)),
       client_delimiter(std::move(client_delimiter)),
-      metadata(std::move(metadata)),
+      metadata_(std::move(metadata)),
       metadata_delimiter(std::move(metadata_delimiter)),
-      data(std::move(data))
+      data_(std::move(data))
 {}
 
 
@@ -191,7 +192,7 @@ auto reply::make(msg::request && r) -> reply
     return reply(std::move(r.head),
                  std::move(r.client),
                  std::move(r.client_delimiter),
-                 std::move(r.metadata),
+                 std::move(r.metadata_),
                  std::move(r.metadata_delimiter),
-                 std::move(r.data));
+                 std::move(r.data_));
 }

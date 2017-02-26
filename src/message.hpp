@@ -254,9 +254,9 @@ namespace msg
         part          service;
         optional_part client;
         part          client_delimiter;
-        many_parts    metadata;
+        many_parts    metadata_;
         part          metadata_delimiter;
-        many_parts    data;
+        many_parts    data_;
 
         request(header        && head,
                 part          && service,
@@ -287,6 +287,13 @@ namespace msg
                            metadata, metadata_delimiter, data);
         }
 
+        auto inline metadata() -> many_parts & {
+            return metadata_;
+        }
+        auto inline data() -> many_parts & {
+            return data_;
+        }
+
         enum types static const type = types::request;
 
         friend class reply;
@@ -298,9 +305,9 @@ namespace msg
         header        head;
         optional_part client;
         part          client_delimiter;
-        many_parts    metadata;
+        many_parts    metadata_;
         part          metadata_delimiter;
-        many_parts    data;
+        many_parts    data_;
 
         reply(header        && head,
               optional_part && client,
@@ -324,6 +331,13 @@ namespace msg
 
             return reply(head, client, client_delimiter,
                          metadata, metadata_delimiter, data);
+        }
+
+        auto inline metadata() -> many_parts & {
+            return metadata_;
+        }
+        auto inline data() -> many_parts & {
+            return data_;
         }
 
         enum types static const type = types::reply;
