@@ -92,6 +92,33 @@ go_bandit([](){
             });
         });
     });
+
+
+    describe("ping messages", [](){
+        it("can be created", [](){
+            auto ping = msg::ping::make();
+        });
+
+        it("can be turned into pong messages", [](){
+            auto ping = msg::ping::make();
+            auto pong = msg::pong::make(std::move(ping));
+        });
+    });
+
+    describe("request messages", [](){
+        it("can be created", [](){
+            auto req = msg::request::make("service",
+                                          msg_vec({"meta", "data"}),
+                                          msg_vec({}));
+        });
+
+        it("can be turned into reply messages", [](){
+            auto req = msg::request::make("service",
+                                          msg_vec({"meta", "data"}),
+                                          msg_vec({}));
+            auto rep = msg::reply::make(std::move(req));
+        });
+    });
 });
 
 

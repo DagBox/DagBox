@@ -30,7 +30,7 @@ namespace msg
 {
     namespace protocol
     {
-        std::string const name = {'D', 'G', 'B', 'X'};
+        std::string const name = "DGBX";
         char const version = 0x01;
 
         std::string const header = name + version;
@@ -288,11 +288,14 @@ namespace msg
         }
 
         enum types static const type = types::request;
+
+        friend class reply;
     };
 
 
     class reply
     {
+        header        head;
         optional_part client;
         part          client_delimiter;
         many_parts    metadata;

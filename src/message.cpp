@@ -56,12 +56,12 @@ auto header::validate() -> void
                protocol::name.size()) != 0) {
         throw malformed("Protocol header is invalid");
     }
-    if (*protocol.data<uint8_t>() != protocol::version) {
+    if (protocol.data<uint8_t>()[protocol::name.size()] != protocol::version) {
         throw unsupported_version("Message uses an unsupported "
                                   "version of the protocol");
     }
 
-    if (type_.size() != 1) {
+    if (type_.size() != sizeof(enum types)) {
         throw malformed("Message type part is malformed");
     }
     using namespace detail;
@@ -151,3 +151,47 @@ request::request(header        && head,
       metadata_delimiter(std::move(metadata_delimiter)),
       data(std::move(data))
 {}
+
+
+auto request::make(std::string const & service_name,
+                 many_parts && metadata_parts,
+                 many_parts && data_parts)
+    -> request
+{
+    return request(
+        header::make(request::type),
+        part(service_name.data(), service_name.size()),
+        boost::none,
+        part(),
+        std::move(metadata_parts),
+        part(),
+        std::move(data_parts));
+}
+
+
+//////////////////// Reply
+
+reply::reply(header        && head,
+             optional_part && client,
+             part          && client_delimiter,
+             many_parts    && metadata,
+             part          && metadata_delimiter,
+             many_parts    && data)
+    : head(std::move(head)),
+      client(std::move(client)),
+      client_delimiter(std::move(client_delimiter)),
+      metadata(std::move(metadata)),
+      metadata_delimiter(std::move(metadata_delimiter)),
+      data(std::move(data))
+{}
+
+
+auto reply::make(msg::request && r) -> reply
+{
+    return reply(std::move(r.head),
+                 std::move(r.client),
+                 std::move(r.client_delimiter),
+                 std::move(r.metadata),
+                 std::move(r.metadata_delimiter),
+                 std::move(r.data));
+}
