@@ -1,0 +1,3 @@
+[submodule "submodules/bandit"]
+	path = submodules/bandit
+	url = https://github.com/banditcpp/bandit.git

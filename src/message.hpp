@@ -84,7 +84,7 @@ namespace msg
         if (iter == end) {
             throw exception::malformed("Expected message part is missing");
         }
-        return *(iter++);
+        return std::move(*(iter++));
     }
 
     template <class iterator>
