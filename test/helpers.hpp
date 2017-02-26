@@ -11,8 +11,7 @@ using namespace snowhouse;
 #include <zmq.hpp>
 
 
-#define TEST(test)                              \
-    go_bandit(test);                            \
+#define RUN_TEST()                              \
     auto main(int argc, char* argv[]) -> int    \
     {                                           \
         return bandit::run(argc, argv);         \

@@ -3,7 +3,7 @@
 
 
 
-TEST([](){
+go_bandit([](){
     zmq::context_t context;
 
     describe("socket", [&](){
@@ -23,3 +23,6 @@ TEST([](){
         });
     });
 });
+
+
+RUN_TEST();

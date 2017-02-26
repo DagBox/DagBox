@@ -94,7 +94,7 @@ namespace msg
             return boost::none;
         }
         // If the first part is empty, no optional part
-        part first = *iter;
+        part first = std::move(*iter);
         if (first.size() == 0) {
             return boost::none;
         }
@@ -106,7 +106,7 @@ namespace msg
         }
         // If the first part is not empty and the second part is, then
         // we found the optional part
-        part second = *iter;
+        part second = std::move(*iter);
         if (second.size() == 0) {
             return first;
         }
@@ -121,7 +121,7 @@ namespace msg
     auto read_many(iterator & iter, iterator & end) -> many_parts {
         many_parts parts;
         while (iter != end && (*iter).size() != 0) {
-            parts.push_back(*(iter++));
+            parts.push_back(std::move(*(iter++)));
         }
         return parts;
     }
