@@ -5,6 +5,34 @@ using namespace msg;
 using namespace detail;
 
 
+
+auto msg::read(std::vector<zmq::message_t> && parts) -> any_message
+{
+    auto iter = begin(parts);
+    auto end_ = end(parts);
+
+    header h = header::read(iter, end_);
+
+    switch (h.type()) {
+    case types::ping:
+        return ping::read(std::move(h), iter, end_);
+        break;
+    case types::pong:
+        return pong::read(std::move(h), iter, end_);
+        break;
+    case types::registration:
+        return registration::read(std::move(h), iter, end_);
+        break;
+    case types::request:
+        return request::read(std::move(h), iter, end_);
+        break;
+    case types::reply:
+        return reply::read(std::move(h), iter, end_);
+        break;
+    }
+}
+
+
 //////////////////// Header
 
 auto header::make_protocol_part() noexcept -> part
@@ -98,9 +126,9 @@ auto detail::send_header(part_sink & sink, header && head) -> void
 //////////////////// Registration
 
 registration::registration(header && head,
-                           optional_part && service)
+                           part && service)
     : head(std::move(head)),
-      service(std::move(service))
+      service_(std::move(service))
 {}
 
 
@@ -116,7 +144,7 @@ auto registration::make(std::string const & service_name) noexcept
 auto registration::send(detail::part_sink & sink)
     -> void
 {
-    detail::send_section(sink, service);
+    detail::send_section(sink, service_);
 }
 
 

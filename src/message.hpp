@@ -36,15 +36,15 @@ using std::end;
  */
 namespace msg
 {
-    namespace protocol
-    {
-        std::string const name = "DGBX";
-        char const version = 0x01;
+    /*! \brief Exactly one message part. */
+    typedef zmq::message_t part;
+    /*! \brief Zero or one message part. */
+    typedef boost::optional<part> optional_part;
+    /*! \brief Zero or more message parts. */
+    typedef std::vector<part> many_parts;
 
-        std::string const header = name + version;
-    }
 
-    /*! \brief Exceptions that can be thrown by [message](\ref message)
+    /*! \brief Exceptions that can be thrown by [msg](\ref msg)
      *  namespace.
      */
     namespace exception
@@ -66,29 +66,29 @@ namespace msg
     }
 
 
-    /*! Types of messages. */
-    enum class types
-    {
-        registration = 0x01,
-        ping = 0x02,
-        pong = 0x03,
-        request = 0x04,
-        reply = 0x05,
-    };
     namespace detail
     {
+        namespace protocol
+        {
+            std::string const name = "DGBX";
+            char const version = 0x01;
+
+            std::string const header = name + version;
+        }
+
+
+        enum class types
+        {
+            registration = 0x01,
+            ping = 0x02,
+            pong = 0x03,
+            request = 0x04,
+            reply = 0x05,
+        };
         auto const type_upper_bound = static_cast<char>(types::reply);
         auto const type_lower_bound = static_cast<char>(types::registration);
-    }
 
 
-    typedef zmq::message_t part;
-    typedef boost::optional<part> optional_part;
-    typedef std::vector<part> many_parts;
-
-
-    namespace detail
-    {
         template <class iterator>
         auto read_part(iterator & iter, iterator & end) -> part {
             if (iter == end) {
@@ -136,48 +136,10 @@ namespace msg
             return parts;
         }
 
+
         class header;
 
 
-        // We want to hide the read methods of the message
-        // classes. But when we make them private, the `msg::read`
-        // function can't access them, and the classes can't friend
-        // `msg::read` because it is a template function, and the type
-        // is unknown until the point where `msg::read` is called.  To
-        // get around this, we create this dummy class, which the
-        // message classes can friend.
-        class reader
-        {
-            template <class message, class iterator>
-            auto inline static read(header && head,
-                                    iterator & iter,
-                                    iterator & end)
-                -> message {
-                return message::read(std::move(head), iter, end);
-            }
-        };
-
-
-    };
-    // Specialized message types
-    class registration;
-    class ping;
-    class pong;
-    class request;
-    class reply;
-
-
-    typedef boost::variant<
-        registration,
-        ping,
-        pong,
-        request,
-        reply
-        > any_message;
-
-
-    namespace detail
-    {
         typedef boost::coroutines2::coroutine<part> part_stream;
 
         typedef part_stream::push_type part_sink;
@@ -209,8 +171,61 @@ namespace msg
         }
     };
 
+
+    // Message types
+    class registration;
+    class ping;
+    class pong;
+    class request;
+    class reply;
+
+    /*! \brief Any message type.
+     *
+     * Represents a type that may be any of the message types. See
+     * [boost::variant](http://www.boost.org/doc/libs/1_63_0/doc/html/variant.html)
+     * on how to interact with this type.
+     */
+    typedef boost::variant<
+        registration,
+        ping,
+        pong,
+        request,
+        reply
+        > any_message;
+
+
+    /*! \brief Read a message from message parts.
+     *
+     * \param parts The message parts that make up the message.
+     *
+     * \returns Any of the message types, depending on what is read
+     * from the iterator. If no exceptions have been thrown, the
+     * message is guaranteed to be valid.
+     *
+     * \throws exception::malformed A malformed message was recieved.
+     * \throws exception::unsupported_version A message using an
+     * unsupported version of the protocol was received.
+     *
+     * Note that this function may throw an exception before consuming
+     * the iterator completely.
+     */
+    auto read(std::vector<zmq::message_t> && parts) -> any_message;
+
+
+    /*! \brief An [InputIterator](http://en.cppreference.com/w/cpp/concept/InputIterator) that contains message parts.
+     */
     typedef detail::part_source::iterator message_iterator;
 
+    /*! \brief Convert a message into an iterator that can be used to
+     *  send that message.
+     *
+     * Note that once a message is passed to this function, that
+     * message should be considered invalid and should not be accessed
+     * in any way.
+     *
+     * \returns A pair of iterators. The first iterator is the
+     * beginning iterator, the second one is the end.
+     */
     template <class message>
     auto send(message && msg)
         -> std::tuple<message_iterator, message_iterator> {
@@ -249,15 +264,17 @@ namespace msg
 
             template <class iterator>
             auto static read(iterator & iter, iterator & end) -> header {
+                using namespace detail;
+
                 auto sender       = read_optional(iter, end);
                 auto sender_delim = read_part(iter, end);
                 auto protocol     = read_part(iter, end);
                 auto type_        = read_part(iter, end);
 
-                header h(sender,
-                         sender_delim,
-                         protocol,
-                         type_);
+                header h(std::move(sender),
+                         std::move(sender_delim),
+                         std::move(protocol),
+                         std::move(type_));
 
                 h.validate();
 
@@ -274,36 +291,57 @@ namespace msg
     };
 
 
+    /*! \brief A service registration message.
+     *
+     * Workers send this message to the broker to register the service
+     * they can provide.
+     */
     class registration
     {
         detail::header head;
-        optional_part service;
+        part service_;
 
         registration(detail::header && head,
-                     optional_part && service);
+                     part && service);
 
         auto send(detail::part_sink & sink) -> void;
 
         template <class iterator>
         auto static read(detail::header && h, iterator & iter, iterator & end)
             -> registration {
-            auto service = read_optional(iter);
+            auto service = detail::read_part(iter, end);
 
-            return registration(h, service);
+            return registration(std::move(h),
+                                std::move(service));
         }
+
+        enum detail::types static const type = detail::types::registration;
     public:
+        /*! \brief Create a service registration message.
+         */
         auto static make(std::string const & service_name) noexcept
             -> registration;
 
-        enum types static const type = types::registration;
+        /*! \brief Get the service name this message is registering for.
+         */
+        auto service() -> std::string const;
 
+        friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
         friend auto send(registration && msg)
             -> std::tuple<message_iterator, message_iterator>;
-
-        friend class detail::reader;
     };
 
 
+    /*! \brief A heartbeat message used to check if the
+     *  recipient is alive.
+     *
+     * This message is typically sent by the broker to check if the
+     * workers are still alive, but may be sent by the workers as
+     * well.
+     *
+     * The recipient of the message must reply with a [pong}(\ref pong)
+     * message.
+     */
     class ping
     {
         detail::header head;
@@ -317,12 +355,14 @@ namespace msg
             -> ping {
             return ping(std::move(h));
         }
+
+        enum detail::types static const type = detail::types::ping;
     public:
+        /*! \brief Create a heartbeat message.
+         */
         auto static make() noexcept -> ping;
 
-        enum types static const type = types::ping;
-
-        friend class detail::reader;
+        friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
         friend auto send(ping && msg)
             -> std::tuple<message_iterator, message_iterator>;
 
@@ -330,6 +370,12 @@ namespace msg
     };
 
 
+    /*! \brief A heartbeat response used to indicate that the sender
+     *  is alive.
+     *
+     * When the broker or a worker recieves a [ping](\ref ping), they
+     * must reply with this message.
+     */
     class pong
     {
         detail::header head;
@@ -343,17 +389,24 @@ namespace msg
             -> pong {
             return pong(std::move(h));
         }
+
+        enum detail::types static const type = detail::types::pong;
     public:
+        /*\ brief Create a response for a heartbeat message.
+         *
+         * When a [ping](\ref ping) is recieved, it can be passed to
+         * this function to create a reply for it.
+         */
         auto static make(ping && p) noexcept -> pong;
 
-        friend class detail::reader;
+        friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
         friend auto send(pong && msg)
             -> std::tuple<message_iterator, message_iterator>;
-
-        enum types static const type = types::pong;
     };
 
 
+    /*! \brief A request for a service to do some form of work.
+     */
     class request
     {
         detail::header head;
@@ -379,6 +432,8 @@ namespace msg
                          iterator & iter,
                          iterator & end)
             -> request {
+            using namespace detail;
+
             auto service            = read_part(iter, end);
             auto client             = read_optional(iter, end);
             auto client_delimiter   = read_part(iter, end);
@@ -386,25 +441,58 @@ namespace msg
             auto metadata_delimiter = read_part(iter, end);
             auto data               = read_many(iter, end);
 
-            return request(head, service, client, client_delimiter,
-                           metadata, metadata_delimiter, data);
+            return request(std::move(head),
+                           std::move(service),
+                           std::move(client),
+                           std::move(client_delimiter),
+                           std::move(metadata),
+                           std::move(metadata_delimiter),
+                           std::move(data));
         }
+
+        enum detail::types static const type = detail::types::request;
     public:
+        /*! \brief Create a new request.
+         *
+         * \param service_name The name of the service the request
+         * will be sent to.
+         *
+         * \param metadata_parts Metadata about the request. These
+         * metadata parts will be returned back to the client along
+         * with the reply without any modifications. This can be used,
+         * for example, to match requests and replies when sending
+         * multiple requests at once.
+         *
+         * \param data_parts The data of the request. The format of
+         * these parts depend on the service.
+         */
         auto static make(std::string const & service_name,
                          many_parts && metadata_parts,
                          many_parts && data_parts)
             -> request;
 
+        /*! \brief Get the metadata of the request.
+         *
+         * The reference returned by this function is valid as long as
+         * the object it is called on is. In other words, the
+         * reference should not be used after the message object is
+         * moved (`std::move`) or destructed.
+         */
         auto inline metadata() -> many_parts & {
             return metadata_;
         }
+        /*! \brief Get the data of the request.
+         *
+         * The reference returned by this function is valid as long as
+         * the object it is called on is. In other words, the
+         * reference should not be used after the message object is
+         * moved (`std::move`) or destructed.
+         */
         auto inline data() -> many_parts & {
             return data_;
         }
 
-        enum types static const type = types::request;
-
-        friend class detail::reader;
+        friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
         friend auto send(request && msg)
             -> std::tuple<message_iterator, message_iterator>;
 
@@ -412,6 +500,8 @@ namespace msg
     };
 
 
+    /*! \brief A reply from a service containing the result of requested work.
+     */
     class reply
     {
         detail::header head;
@@ -435,56 +525,51 @@ namespace msg
                          iterator & iter,
                          iterator & end)
             -> reply {
+            using namespace detail;
+
             auto client             = read_optional(iter, end);
             auto client_delimiter   = read_part(iter, end);
             auto metadata           = read_many(iter, end);
             auto metadata_delimiter = read_part(iter, end);
             auto data               = read_many(iter, end);
 
-            return reply(head, client, client_delimiter,
-                         metadata, metadata_delimiter, data);
+            return reply(std::move(head),
+                         std::move(client),
+                         std::move(client_delimiter),
+                         std::move(metadata),
+                         std::move(metadata_delimiter),
+                         std::move(data));
         }
+
+        enum detail::types static const type = detail::types::reply;
     public:
+        /*! \brief Create a response for a request.
+         */
         auto static make(request && r) -> reply;
 
+        /*! \brief Get the metadata of the request.
+         *
+         * The reference returned by this function is valid as long as
+         * the object it is called on is. In other words, the
+         * reference should not be used after the message object is
+         * moved (`std::move`) or destructed.
+         */
         auto inline metadata() -> many_parts & {
             return metadata_;
         }
+        /*! \brief Get the data of the request.
+         *
+         * The reference returned by this function is valid as long as
+         * the object it is called on is. In other words, the
+         * reference should not be used after the message object is
+         * moved (`std::move`) or destructed.
+         */
         auto inline data() -> many_parts & {
             return data_;
         }
 
-        enum types static const type = types::reply;
-
-        friend class detail::reader;
+        friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
         friend auto send(reply && msg)
             -> std::tuple<message_iterator, message_iterator>;
     };
-
-
-    template <class iterator>
-    auto read(iterator & iter, iterator & end)
-        -> any_message {
-        using namespace detail;
-
-        header h = header::read(iter, end);
-
-        switch (h.type()) {
-        case types::ping:
-            return reader::read<ping>(std::move(h), iter, end);
-            break;
-        case types::pong:
-            return reader::read<pong>(std::move(h), iter, end);
-            break;
-        case types::registration:
-            return reader::read<registration>(std::move(h), iter, end);
-            break;
-        case types::request:
-            return reader::read<request>(std::move(h), iter, end);
-            break;
-        case types::reply:
-            return reader::read<reply>(std::move(h), iter, end);
-            break;
-        }
-    }
 };
