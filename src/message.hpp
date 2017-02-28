@@ -87,55 +87,78 @@ namespace msg
     typedef std::vector<part> many_parts;
 
 
-    template <class iterator>
-    auto read_part(iterator & iter, iterator & end) -> part {
-        if (iter == end) {
-            throw exception::malformed("Expected message part is missing");
-        }
-        return std::move(*(iter++));
-    }
-
-    template <class iterator>
-    auto read_optional(iterator & iter, iterator & end) -> optional_part {
-        // If there are no parts left, no optional part
-        if (iter == end) {
-            return boost::none;
-        }
-        // If the first part is empty, no optional part
-        part first = std::move(*iter);
-        if (first.size() == 0) {
-            return boost::none;
-        }
-        // If the first part is not empty, and there are no parts
-        // left, then we found the optional part
-        ++iter;
-        if (iter == end) {
-            return first;
-        }
-        // If the first part is not empty and the second part is, then
-        // we found the optional part
-        part second = std::move(*iter);
-        if (second.size() == 0) {
-            return first;
+    namespace detail
+    {
+        template <class iterator>
+        auto read_part(iterator & iter, iterator & end) -> part {
+            if (iter == end) {
+                throw exception::malformed("Expected message part is missing");
+            }
+            return std::move(*(iter++));
         }
 
-        // If both the first and the second part are not empty, then
-        // we weren't sent an optional part at all
-        throw exception::malformed("Expected optional message part "
-                                   "is malformed");
-    }
+        template <class iterator>
+        auto read_optional(iterator & iter, iterator & end) -> optional_part {
+            // If there are no parts left, no optional part
+            if (iter == end) {
+                return boost::none;
+            }
+            // If the first part is empty, no optional part
+            part first = std::move(*iter);
+            if (first.size() == 0) {
+                return boost::none;
+            }
+            // If the first part is not empty, and there are no parts
+            // left, then we found the optional part
+            ++iter;
+            if (iter == end) {
+                return first;
+            }
+            // If the first part is not empty and the second part is, then
+            // we found the optional part
+            part second = std::move(*iter);
+            if (second.size() == 0) {
+                return first;
+            }
 
-    template <class iterator>
-    auto read_many(iterator & iter, iterator & end) -> many_parts {
-        many_parts parts;
-        while (iter != end && (*iter).size() != 0) {
-            parts.push_back(std::move(*(iter++)));
+            // If both the first and the second part are not empty, then
+            // we weren't sent an optional part at all
+            throw exception::malformed("Expected optional message part "
+                                       "is malformed");
         }
-        return parts;
-    }
+
+        template <class iterator>
+        auto read_many(iterator & iter, iterator & end) -> many_parts {
+            many_parts parts;
+            while (iter != end && (*iter).size() != 0) {
+                parts.push_back(std::move(*(iter++)));
+            }
+            return parts;
+        }
+
+        class header;
 
 
-    class header;
+        // We want to hide the read methods of the message
+        // classes. But when we make them private, the `msg::read`
+        // function can't access them, and the classes can't friend
+        // `msg::read` because it is a template function, and the type
+        // is unknown until the point where `msg::read` is called.  To
+        // get around this, we create this dummy class, which the
+        // message classes can friend.
+        class reader
+        {
+            template <class message, class iterator>
+            auto inline static read(header && head,
+                                    iterator & iter,
+                                    iterator & end)
+                -> message {
+                return message::read(std::move(head), iter, end);
+            }
+        };
+
+
+    };
     // Specialized message types
     class registration;
     class ping;
@@ -202,97 +225,106 @@ namespace msg
     }
 
 
-    class header
+    namespace detail
     {
-        auto static make_protocol_part() noexcept -> part;
+        class header
+        {
+            auto static make_protocol_part() noexcept -> part;
 
-        auto static make_type_part(enum types type_) noexcept -> part;
+            auto static make_type_part(enum types type_) noexcept -> part;
 
-        optional_part sender;
-        part sender_delimiter;
-        part protocol;
-        part type_;
+            optional_part sender;
+            part sender_delimiter;
+            part protocol;
+            part type_;
 
-        auto validate() -> void;
+            auto validate() -> void;
 
-        header(optional_part && sender,
-               part && sender_delimiter,
-               part && protocol,
-               part && type_);
-    public:
-        auto static make(enum types type_) noexcept -> header;
+            header(optional_part && sender,
+                   part && sender_delimiter,
+                   part && protocol,
+                   part && type_);
+        public:
+            auto static make(enum types type_) noexcept -> header;
 
-        template <class iterator>
-        auto static read(iterator & iter, iterator & end) -> header {
-            auto sender       = read_optional(iter, end);
-            auto sender_delim = read_part(iter, end);
-            auto protocol     = read_part(iter, end);
-            auto type_        = read_part(iter, end);
+            template <class iterator>
+            auto static read(iterator & iter, iterator & end) -> header {
+                auto sender       = read_optional(iter, end);
+                auto sender_delim = read_part(iter, end);
+                auto protocol     = read_part(iter, end);
+                auto type_        = read_part(iter, end);
 
-            header h(sender,
-                     sender_delim,
-                     protocol,
-                     type_);
+                header h(sender,
+                         sender_delim,
+                         protocol,
+                         type_);
 
-            h.validate();
+                h.validate();
 
-            return h;
-        }
+                return h;
+            }
 
-        auto type() const noexcept -> enum types;
+            auto type() const noexcept -> enum types;
 
-        auto type(enum types new_type) noexcept -> void;
+            auto type(enum types new_type) noexcept -> void;
 
-        friend auto detail::send_header(detail::part_sink & sink,
-                                        header && head) -> void;
+            friend auto detail::send_header(detail::part_sink & sink,
+                                            header && head) -> void;
+        };
     };
 
 
     class registration
     {
-        header head;
+        detail::header head;
         optional_part service;
 
-        registration(header && head,
+        registration(detail::header && head,
                      optional_part && service);
 
         auto send(detail::part_sink & sink) -> void;
-    public:
-        auto static make(std::string const & service_name) noexcept
-            -> registration;
 
         template <class iterator>
-        auto static read(header && h, iterator & iter, iterator & end)
+        auto static read(detail::header && h, iterator & iter, iterator & end)
             -> registration {
             auto service = read_optional(iter);
 
             return registration(h, service);
         }
+    public:
+        auto static make(std::string const & service_name) noexcept
+            -> registration;
 
         enum types static const type = types::registration;
 
         friend auto send(registration && msg)
             -> std::tuple<message_iterator, message_iterator>;
+
+        friend class detail::reader;
     };
 
 
     class ping
     {
-        header head;
+        detail::header head;
 
-        ping(header && head);
+        ping(detail::header && head);
 
         auto send(detail::part_sink & sink) -> void;
-    public:
-        auto static make() noexcept -> ping;
 
         template <class iterator>
-        auto static read(header && h, iterator & iter, iterator & end)
+        auto static read(detail::header && h, iterator & iter, iterator & end)
             -> ping {
             return ping(std::move(h));
         }
+    public:
+        auto static make() noexcept -> ping;
 
         enum types static const type = types::ping;
+
+        friend class detail::reader;
+        friend auto send(ping && msg)
+            -> std::tuple<message_iterator, message_iterator>;
 
         friend class pong;
     };
@@ -300,19 +332,23 @@ namespace msg
 
     class pong
     {
-        header head;
+        detail::header head;
 
-        pong(header && head);
+        pong(detail::header && head);
 
         auto send(detail::part_sink & sink) -> void;
-    public:
-        auto static make(ping && p) noexcept -> pong;
 
         template <class iterator>
-        auto static read(header && h, iterator & iter, iterator & end)
+        auto static read(detail::header && h, iterator & iter, iterator & end)
             -> pong {
             return pong(std::move(h));
         }
+    public:
+        auto static make(ping && p) noexcept -> pong;
+
+        friend class detail::reader;
+        friend auto send(pong && msg)
+            -> std::tuple<message_iterator, message_iterator>;
 
         enum types static const type = types::pong;
     };
@@ -320,7 +356,7 @@ namespace msg
 
     class request
     {
-        header        head;
+        detail::header head;
         part          service;
         optional_part client;
         part          client_delimiter;
@@ -328,7 +364,7 @@ namespace msg
         part          metadata_delimiter;
         many_parts    data_;
 
-        request(header        && head,
+        request(detail::header && head,
                 part          && service,
                 optional_part && client,
                 part          && client_delimiter,
@@ -337,14 +373,9 @@ namespace msg
                 many_parts    && data);
 
         auto send(detail::part_sink & sink) -> void;
-    public:
-        auto static make(std::string const & service_name,
-                         many_parts && metadata_parts,
-                         many_parts && data_parts)
-            -> request;
-        
+
         template <class iterator>
-        auto static read(header && head,
+        auto static read(detail::header && head,
                          iterator & iter,
                          iterator & end)
             -> request {
@@ -358,6 +389,11 @@ namespace msg
             return request(head, service, client, client_delimiter,
                            metadata, metadata_delimiter, data);
         }
+    public:
+        auto static make(std::string const & service_name,
+                         many_parts && metadata_parts,
+                         many_parts && data_parts)
+            -> request;
 
         auto inline metadata() -> many_parts & {
             return metadata_;
@@ -368,20 +404,24 @@ namespace msg
 
         enum types static const type = types::request;
 
+        friend class detail::reader;
+        friend auto send(request && msg)
+            -> std::tuple<message_iterator, message_iterator>;
+
         friend class reply;
     };
 
 
     class reply
     {
-        header        head;
+        detail::header head;
         optional_part client;
         part          client_delimiter;
         many_parts    metadata_;
         part          metadata_delimiter;
         many_parts    data_;
 
-        reply(header        && head,
+        reply(detail::header && head,
               optional_part && client,
               part          && client_delimiter,
               many_parts    && metadata,
@@ -389,11 +429,9 @@ namespace msg
               many_parts    && data);
 
         auto send(detail::part_sink & sink) -> void;
-    public:
-        auto static make(request && r) -> reply;
 
         template <class iterator>
-        auto static read(header && head,
+        auto static read(detail::header && head,
                          iterator & iter,
                          iterator & end)
             -> reply {
@@ -406,6 +444,8 @@ namespace msg
             return reply(head, client, client_delimiter,
                          metadata, metadata_delimiter, data);
         }
+    public:
+        auto static make(request && r) -> reply;
 
         auto inline metadata() -> many_parts & {
             return metadata_;
@@ -415,29 +455,35 @@ namespace msg
         }
 
         enum types static const type = types::reply;
+
+        friend class detail::reader;
+        friend auto send(reply && msg)
+            -> std::tuple<message_iterator, message_iterator>;
     };
 
 
     template <class iterator>
     auto read(iterator & iter, iterator & end)
         -> any_message {
+        using namespace detail;
+
         header h = header::read(iter, end);
 
         switch (h.type()) {
         case types::ping:
-            return ping::read(std::move(h), iter, end);
+            return reader::read<ping>(std::move(h), iter, end);
             break;
         case types::pong:
-            return pong::read(std::move(h), iter, end);
+            return reader::read<pong>(std::move(h), iter, end);
             break;
         case types::registration:
-            return registration::read(std::move(h), iter, end);
+            return reader::read<registration>(std::move(h), iter, end);
             break;
         case types::request:
-            return request::read(std::move(h), iter, end);
+            return reader::read<request>(std::move(h), iter, end);
             break;
         case types::reply:
-            return reply::read(std::move(h), iter, end);
+            return reader::read<reply>(std::move(h), iter, end);
             break;
         }
     }

@@ -11,7 +11,7 @@ go_bandit([](){
                 auto b = msgs.begin();
                 auto e = msgs.end();
 
-                auto p = msg::read_part(b, e);
+                auto p = msg::detail::read_part(b, e);
 
                 AssertThat(msg2str(p), Equals("first"));
             });
@@ -22,7 +22,8 @@ go_bandit([](){
                 auto b = msgs.begin();
                 auto e = msgs.end();
 
-                AssertThrows(msg::exception::malformed, msg::read_part(b, e));
+                AssertThrows(msg::exception::malformed,
+                             msg::detail::read_part(b, e));
             });
         });
 
@@ -33,7 +34,7 @@ go_bandit([](){
                 auto b = msgs.begin();
                 auto e = msgs.end();
 
-                auto p = msg::read_optional(b, e);
+                auto p = msg::detail::read_optional(b, e);
 
                 AssertThat(msg2str(*p), Equals("first"));
             });
@@ -44,7 +45,7 @@ go_bandit([](){
                 auto b = msgs.begin();
                 auto e = msgs.end();
 
-                auto p = msg::read_optional(b, e);
+                auto p = msg::detail::read_optional(b, e);
 
                 AssertThat(bool(p), Equals(false));
             });
@@ -59,7 +60,7 @@ go_bandit([](){
                 auto e = msgs.end();
 
                 AssertThrows(msg::exception::malformed,
-                             msg::read_optional(b, e));
+                             msg::detail::read_optional(b, e));
             });
         });
 
@@ -70,7 +71,7 @@ go_bandit([](){
                 auto b = msgs.begin();
                 auto e = msgs.end();
 
-                auto ps = msg::read_many(b, e);
+                auto ps = msg::detail::read_many(b, e);
 
                 AssertThat(msg2str(ps[0]), Equals("one"));
                 AssertThat(msg2str(ps[1]), Equals("two"));
@@ -83,7 +84,7 @@ go_bandit([](){
                 auto b = msgs.begin();
                 auto e = msgs.end();
 
-                auto ps = msg::read_many(b, e);
+                auto ps = msg::detail::read_many(b, e);
 
                 AssertThat(msg2str(ps[0]), Equals("one"));
                 AssertThat(msg2str(ps[1]), Equals("two"));

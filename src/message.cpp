@@ -2,7 +2,7 @@
 #include <zmq.hpp>
 #include "message.hpp"
 using namespace msg;
-
+using namespace detail;
 
 
 //////////////////// Header
