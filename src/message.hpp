@@ -1,9 +1,17 @@
 #pragma once
 
 #include <vector>
+#include <tuple>
 #include <boost/variant.hpp>
 #include <boost/optional.hpp>
+#include <boost/coroutine2/coroutine.hpp>
 #include "socket.hpp"
+
+// Allow ADL-selected overloads on begin and end for both user defined
+// types (i.e. boost coroutines) and STL types
+using std::begin;
+using std::end;
+
 
 /*! \file message.hpp
  * Helpers for handling messages.
@@ -127,6 +135,7 @@ namespace msg
     }
 
 
+    class header;
     // Specialized message types
     class registration;
     class ping;
@@ -142,6 +151,55 @@ namespace msg
         request,
         reply
         > any_message;
+
+
+    namespace detail
+    {
+        typedef boost::coroutines2::coroutine<part> part_stream;
+
+        typedef part_stream::push_type part_sink;
+        typedef part_stream::pull_type part_source;
+
+        // Placed here rather than inside the header class to avoid
+        // exposing it as a part of our public API. Otherwise, we'd
+        // have to make it a private function and would have to make
+        // all message classes friend.
+        auto send_header(part_sink & sink, header && head) -> void;
+
+        auto inline send_section(part_sink & sink, part & p) -> void
+        {
+            sink(p);
+        }
+
+        auto inline send_section(part_sink & sink, optional_part & p) -> void
+        {
+            if (p) {
+                sink(*p);
+            }
+        }
+
+        auto inline send_section(part_sink & sink, many_parts & ps) -> void
+        {
+            for (auto & p : ps) {
+                sink(p);
+            }
+        }
+    };
+
+    typedef detail::part_source::iterator message_iterator;
+
+    template <class message>
+    auto send(message && msg)
+        -> std::tuple<message_iterator, message_iterator> {
+        using namespace detail;
+
+        part_source source([&](detail::part_sink & sink){
+            send_header(sink, std::move(msg.head));
+
+            msg.send(sink);
+        });
+        return std::make_tuple(begin(source), end(source));
+    }
 
 
     class header
@@ -184,6 +242,9 @@ namespace msg
         auto type() const noexcept -> enum types;
 
         auto type(enum types new_type) noexcept -> void;
+
+        friend auto detail::send_header(detail::part_sink & sink,
+                                        header && head) -> void;
     };
 
 
@@ -194,6 +255,8 @@ namespace msg
 
         registration(header && head,
                      optional_part && service);
+
+        auto send(detail::part_sink & sink) -> void;
     public:
         auto static make(std::string const & service_name) noexcept
             -> registration;
@@ -207,6 +270,9 @@ namespace msg
         }
 
         enum types static const type = types::registration;
+
+        friend auto send(registration && msg)
+            -> std::tuple<message_iterator, message_iterator>;
     };
 
 
@@ -215,6 +281,8 @@ namespace msg
         header head;
 
         ping(header && head);
+
+        auto send(detail::part_sink & sink) -> void;
     public:
         auto static make() noexcept -> ping;
 
@@ -235,6 +303,8 @@ namespace msg
         header head;
 
         pong(header && head);
+
+        auto send(detail::part_sink & sink) -> void;
     public:
         auto static make(ping && p) noexcept -> pong;
 
@@ -265,6 +335,8 @@ namespace msg
                 many_parts    && metadata,
                 part          && metadata_delimiter,
                 many_parts    && data);
+
+        auto send(detail::part_sink & sink) -> void;
     public:
         auto static make(std::string const & service_name,
                          many_parts && metadata_parts,
@@ -315,6 +387,8 @@ namespace msg
               many_parts    && metadata,
               part          && metadata_delimiter,
               many_parts    && data);
+
+        auto send(detail::part_sink & sink) -> void;
     public:
         auto static make(request && r) -> reply;
 
@@ -351,19 +425,19 @@ namespace msg
 
         switch (h.type()) {
         case types::ping:
-            return ping::read(h, iter, end);
+            return ping::read(std::move(h), iter, end);
             break;
         case types::pong:
-            return pong::read(h, iter, end);
+            return pong::read(std::move(h), iter, end);
             break;
         case types::registration:
-            return registration::read(h, iter, end);
+            return registration::read(std::move(h), iter, end);
             break;
         case types::request:
-            return request::read(h, iter, end);
+            return request::read(std::move(h), iter, end);
             break;
         case types::reply:
-            return reply::read(h, iter, end);
+            return reply::read(std::move(h), iter, end);
             break;
         }
     }

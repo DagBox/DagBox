@@ -5,6 +5,8 @@ project(DagBox CXX)
 include_directories(./submodules/bandit)
 enable_testing()
 
+find_package(Boost COMPONENTS context)
+
 include_directories(/usr/local/include)
 link_directories(/usr/local/lib)
 

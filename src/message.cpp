@@ -84,6 +84,16 @@ auto header::type(enum types new_type) noexcept -> void
 }
 
 
+auto detail::send_header(part_sink & sink, header && head) -> void
+{
+    if (head.sender) {
+        sink(*head.sender);
+    }
+    sink(head.sender_delimiter);
+    sink(head.protocol);
+    sink(head.type_);
+}
+
 
 //////////////////// Registration
 
@@ -103,6 +113,13 @@ auto registration::make(std::string const & service_name) noexcept
 }
 
 
+auto registration::send(detail::part_sink & sink)
+    -> void
+{
+    detail::send_section(sink, service);
+}
+
+
 
 //////////////////// Ping
 
@@ -116,6 +133,12 @@ auto ping::make() noexcept -> ping
     return ping(header::make(ping::type));
 }
 
+
+auto ping::send(detail::part_sink & sink) -> void
+{
+    // We do nothing here, because ping messages don't have any
+    // parts other than their header
+}
 
 
 //////////////////// Pong
@@ -132,6 +155,12 @@ auto pong::make(ping && p) noexcept -> pong
     return pong_;
 }
 
+
+auto pong::send(detail::part_sink & sink) -> void
+{
+    // We do nothing here, because pong messages don't have any parts
+    // other than their header
+}
 
 
 //////////////////// Request
@@ -169,6 +198,19 @@ auto request::make(std::string const & service_name,
 }
 
 
+auto request::send(detail::part_sink & sink) -> void
+{
+    using namespace detail;
+
+    send_section(sink, service);
+    send_section(sink, client);
+    send_section(sink, client_delimiter);
+    send_section(sink, metadata_);
+    send_section(sink, metadata_delimiter);
+    send_section(sink, data_);
+}
+
+
 
 //////////////////// Reply
 
@@ -195,4 +237,16 @@ auto reply::make(msg::request && r) -> reply
                  std::move(r.metadata_),
                  std::move(r.metadata_delimiter),
                  std::move(r.data_));
+}
+
+
+auto reply::send(detail::part_sink & sink) -> void
+{
+    using namespace detail;
+
+    send_section(sink, client);
+    send_section(sink, client_delimiter);
+    send_section(sink, metadata_);
+    send_section(sink, metadata_delimiter);
+    send_section(sink, data_);
 }
