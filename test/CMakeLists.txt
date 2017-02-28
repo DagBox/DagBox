@@ -1,5 +1,3 @@
-find_package(Boost COMPONENTS context)
-
 add_executable(test-socket socket.cpp)
 target_link_libraries(test-socket zmq socket)
 
