@@ -1,7 +1,12 @@
 #pragma once
 
 #include <vector>
+#include <tuple>
 #include <zmq.hpp>
+
+using std::begin;
+using std::end;
+
 
 
 /*! \file socket.hpp
@@ -28,13 +33,16 @@ public:
 
     /*! \brief Send a message that has multiple parts.
      */
-    template <class iterator>
-    auto send_multimsg(iterator first, iterator last) -> void
+    template <class container>
+    auto send_multimsg(container && cont) -> void
     {
-        while (first != last) {
-            auto part = std::move(*first);
-            ++first;
-            if (first != last) { // More parts to send
+        typedef typename container::iterator iterator;
+        iterator iter = begin(cont);
+        iterator last = end(cont);
+        while (iter != last) {
+            auto part = std::move(*iter);
+            ++iter;
+            if (iter != last) { // More parts to send
                 send(part, ZMQ_SNDMORE);
             } else {
                 send(part);

@@ -37,23 +37,23 @@ auto msg::read(std::vector<zmq::message_t> && parts) -> any_message
 
 auto header::make_protocol_part() noexcept -> part
 {
-    return zmq::message_t(protocol::header.data(),
-                          protocol::header.size());
+    return part(protocol::header.data(),
+                protocol::header.size());
 }
 
 
 auto header::make_type_part(enum types type_) noexcept -> part
 {
-    return zmq::message_t(&type_, sizeof(type_));
+    return part(&type_, sizeof(type_));
 }
 
 
-header::header(optional_part && sender,
-               part && sender_delimiter,
+header::header(optional_part && address_,
+               part && address_delim,
                part && protocol_part,
                part && type_part)
-    : sender(std::move(sender)),
-      sender_delimiter(std::move(sender_delimiter)),
+    : address_(std::move(address_)),
+      address_delim(std::move(address_delim)),
       protocol(std::move(protocol_part)),
       type_(std::move(type_part))
 {
@@ -64,7 +64,7 @@ header::header(optional_part && sender,
 auto header::make(enum types type_) noexcept -> header
 {
     return header(boost::none,
-                  zmq::message_t(),
+                  part(),
                   make_protocol_part(),
                   make_type_part(type_));
 }
@@ -112,14 +112,30 @@ auto header::type(enum types new_type) noexcept -> void
 }
 
 
-auto detail::send_header(part_sink & sink, header && head) -> void
+auto header::address() const noexcept -> boost::optional<msg::address>
 {
-    if (head.sender) {
-        sink(*head.sender);
+    if (!address_) {
+        return boost::none;
+    } else {
+        return std::string(address_->data<char>(), address_->size());
     }
-    sink(head.sender_delimiter);
-    sink(head.protocol);
-    sink(head.type_);
+}
+
+
+auto header::address(std::string const & addr) -> void
+{
+    address_ = part(addr.data(), addr.size());
+}
+
+
+auto header::send(part_sink & sink) -> void
+{
+    if (address_) {
+        sink(*address_);
+    }
+    sink(address_delim);
+    sink(protocol);
+    sink(type_);
 }
 
 
@@ -136,8 +152,8 @@ auto registration::make(std::string const & service_name) noexcept
     -> registration
 {
     return registration(header::make(types::registration),
-                        zmq::message_t(service_name.data(),
-                                       service_name.size()));
+                        part(service_name.data(),
+                             service_name.size()));
 }
 
 
@@ -194,15 +210,15 @@ auto pong::send(detail::part_sink & sink) -> void
 //////////////////// Request
 
 request::request(header        && head,
-                 part          && service,
-                 optional_part && client,
+                 part          && service_,
+                 optional_part && client_,
                  part          && client_delimiter,
                  many_parts    && metadata,
                  part          && metadata_delimiter,
                  many_parts    && data)
     : head(std::move(head)),
-      service(std::move(service)),
-      client(std::move(client)),
+      service_(std::move(service_)),
+      client_(std::move(client_)),
       client_delimiter(std::move(client_delimiter)),
       metadata_(std::move(metadata)),
       metadata_delimiter(std::move(metadata_delimiter)),
@@ -211,8 +227,8 @@ request::request(header        && head,
 
 
 auto request::make(std::string const & service_name,
-                 many_parts && metadata_parts,
-                 many_parts && data_parts)
+                   many_parts && metadata_parts,
+                   many_parts && data_parts)
     -> request
 {
     return request(
@@ -230,8 +246,8 @@ auto request::send(detail::part_sink & sink) -> void
 {
     using namespace detail;
 
-    send_section(sink, service);
-    send_section(sink, client);
+    send_section(sink, service_);
+    send_section(sink, client_);
     send_section(sink, client_delimiter);
     send_section(sink, metadata_);
     send_section(sink, metadata_delimiter);
@@ -243,13 +259,13 @@ auto request::send(detail::part_sink & sink) -> void
 //////////////////// Reply
 
 reply::reply(header        && head,
-             optional_part && client,
+             optional_part && client_,
              part          && client_delimiter,
              many_parts    && metadata,
              part          && metadata_delimiter,
              many_parts    && data)
     : head(std::move(head)),
-      client(std::move(client)),
+      client_(std::move(client_)),
       client_delimiter(std::move(client_delimiter)),
       metadata_(std::move(metadata)),
       metadata_delimiter(std::move(metadata_delimiter)),
@@ -260,7 +276,7 @@ reply::reply(header        && head,
 auto reply::make(msg::request && r) -> reply
 {
     return reply(std::move(r.head),
-                 std::move(r.client),
+                 std::move(r.client_),
                  std::move(r.client_delimiter),
                  std::move(r.metadata_),
                  std::move(r.metadata_delimiter),
@@ -272,7 +288,7 @@ auto reply::send(detail::part_sink & sink) -> void
 {
     using namespace detail;
 
-    send_section(sink, client);
+    send_section(sink, client_);
     send_section(sink, client_delimiter);
     send_section(sink, metadata_);
     send_section(sink, metadata_delimiter);

@@ -5,6 +5,7 @@
 #include <boost/variant.hpp>
 #include <boost/optional.hpp>
 #include <boost/coroutine2/coroutine.hpp>
+#include "exception.hpp"
 #include "socket.hpp"
 
 // Allow ADL-selected overloads on begin and end for both user defined
@@ -19,18 +20,6 @@ using std::end;
 
 
 
-/*! \brief Declare an exception class.
- *
- * Declares an exception class with the name `name` that inherits from
- * `base` class. The declared class will retain all constructors of
- * the base class.
- */
-#define EXCEPTION(name, base)                        \
-    class name                                       \
-        : public base                                \
-    {using base::base;}
-
-
 
 /*! \brief Helpers for handling messages.
  */
@@ -42,6 +31,9 @@ namespace msg
     typedef boost::optional<part> optional_part;
     /*! \brief Zero or more message parts. */
     typedef std::vector<part> many_parts;
+
+    /*! \brief A 0mq address. */
+    typedef std::string address;
 
 
     /*! \brief Exceptions that can be thrown by [msg](\ref msg)
@@ -143,13 +135,6 @@ namespace msg
         typedef boost::coroutines2::coroutine<part> part_stream;
 
         typedef part_stream::push_type part_sink;
-        typedef part_stream::pull_type part_source;
-
-        // Placed here rather than inside the header class to avoid
-        // exposing it as a part of our public API. Otherwise, we'd
-        // have to make it a private function and would have to make
-        // all message classes friend.
-        auto send_header(part_sink & sink, header && head) -> void;
 
         auto inline send_section(part_sink & sink, part & p) -> void
         {
@@ -212,9 +197,30 @@ namespace msg
     auto read(std::vector<zmq::message_t> && parts) -> any_message;
 
 
-    /*! \brief An [InputIterator](http://en.cppreference.com/w/cpp/concept/InputIterator) that contains message parts.
+    /*! \brief Some form of a container which can be iterated on to recieve message parts.
+     *
+     * `begin` and `end` functions can be called on this
+     * pseudo-container to recieve
+     * [InputIterator](http://en.cppreference.com/w/cpp/concept/InputIterator)s
+     * that contain message parts.
      */
-    typedef detail::part_source::iterator message_iterator;
+    typedef detail::part_stream::pull_type part_source;
+
+    namespace detail
+    {
+        // The compilers don't seem to like friend'ing template
+        // functions. So we create a dummy class here to make it
+        // easier for message classes to friend the send function.
+        struct sender
+        {
+            template <class message>
+            auto static inline send(message & msg, detail::part_sink & sink) -> void {
+                msg.head.send(sink);
+                msg.send(sink);
+            }
+        };
+    }
+
 
     /*! \brief Convert a message into an iterator that can be used to
      *  send that message.
@@ -228,15 +234,13 @@ namespace msg
      */
     template <class message>
     auto send(message && msg)
-        -> std::tuple<message_iterator, message_iterator> {
+        -> part_source {
         using namespace detail;
 
         part_source source([&](detail::part_sink & sink){
-            send_header(sink, std::move(msg.head));
-
-            msg.send(sink);
+            sender::send(msg, sink);
         });
-        return std::make_tuple(begin(source), end(source));
+        return source;
     }
 
 
@@ -248,17 +252,19 @@ namespace msg
 
             auto static make_type_part(enum types type_) noexcept -> part;
 
-            optional_part sender;
-            part sender_delimiter;
+            optional_part address_;
+            part address_delim;
             part protocol;
             part type_;
 
             auto validate() -> void;
 
-            header(optional_part && sender,
-                   part && sender_delimiter,
+            header(optional_part && address_,
+                   part && address_delim,
                    part && protocol,
                    part && type_);
+
+            auto send(detail::part_sink & sink) -> void;
         public:
             auto static make(enum types type_) noexcept -> header;
 
@@ -266,13 +272,13 @@ namespace msg
             auto static read(iterator & iter, iterator & end) -> header {
                 using namespace detail;
 
-                auto sender       = read_optional(iter, end);
-                auto sender_delim = read_part(iter, end);
-                auto protocol     = read_part(iter, end);
-                auto type_        = read_part(iter, end);
+                auto address_      = read_optional(iter, end);
+                auto address_delim = read_part(iter, end);
+                auto protocol      = read_part(iter, end);
+                auto type_         = read_part(iter, end);
 
-                header h(std::move(sender),
-                         std::move(sender_delim),
+                header h(std::move(address_),
+                         std::move(address_delim),
                          std::move(protocol),
                          std::move(type_));
 
@@ -282,11 +288,11 @@ namespace msg
             }
 
             auto type() const noexcept -> enum types;
-
             auto type(enum types new_type) noexcept -> void;
+            auto address() const noexcept -> boost::optional<msg::address>;
+            auto address(msg::address const & addr) -> void;
 
-            friend auto detail::send_header(detail::part_sink & sink,
-                                            header && head) -> void;
+            friend class sender;
         };
     };
 
@@ -318,6 +324,11 @@ namespace msg
         enum detail::types static const type = detail::types::registration;
     public:
         /*! \brief Create a service registration message.
+         *
+         * \param addr The address of the broker.
+         *
+         * \param service_name The name of the service the worker can
+         * provide.
          */
         auto static make(std::string const & service_name) noexcept
             -> registration;
@@ -326,9 +337,12 @@ namespace msg
          */
         auto service() -> std::string const;
 
+        auto inline address() const noexcept -> boost::optional<msg::address> {
+            return head.address();
+        }
+
         friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
-        friend auto send(registration && msg)
-            -> std::tuple<message_iterator, message_iterator>;
+        friend class detail::sender;
     };
 
 
@@ -359,13 +373,17 @@ namespace msg
         enum detail::types static const type = detail::types::ping;
     public:
         /*! \brief Create a heartbeat message.
+         *
+         * \param addr The address of the broker.
          */
         auto static make() noexcept -> ping;
 
-        friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
-        friend auto send(ping && msg)
-            -> std::tuple<message_iterator, message_iterator>;
+        auto inline address() const noexcept -> boost::optional<msg::address> {
+            return head.address();
+        }
 
+        friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
+        friend class detail::sender;
         friend class pong;
     };
 
@@ -399,9 +417,12 @@ namespace msg
          */
         auto static make(ping && p) noexcept -> pong;
 
+        auto inline address() const noexcept -> boost::optional<msg::address> {
+            return head.address();
+        }
+
         friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
-        friend auto send(pong && msg)
-            -> std::tuple<message_iterator, message_iterator>;
+        friend class detail::sender;
     };
 
 
@@ -410,20 +431,20 @@ namespace msg
     class request
     {
         detail::header head;
-        part          service;
-        optional_part client;
+        part          service_;
+        optional_part client_;
         part          client_delimiter;
         many_parts    metadata_;
         part          metadata_delimiter;
         many_parts    data_;
 
         request(detail::header && head,
-                part          && service,
-                optional_part && client,
-                part          && client_delimiter,
-                many_parts    && metadata,
-                part          && metadata_delimiter,
-                many_parts    && data);
+                part           && service_,
+                optional_part  && client_,
+                part           && client_delimiter,
+                many_parts     && metadata,
+                part           && metadata_delimiter,
+                many_parts     && data);
 
         auto send(detail::part_sink & sink) -> void;
 
@@ -434,16 +455,16 @@ namespace msg
             -> request {
             using namespace detail;
 
-            auto service            = read_part(iter, end);
-            auto client             = read_optional(iter, end);
+            auto service_           = read_part(iter, end);
+            auto client_            = read_optional(iter, end);
             auto client_delimiter   = read_part(iter, end);
             auto metadata           = read_many(iter, end);
             auto metadata_delimiter = read_part(iter, end);
             auto data               = read_many(iter, end);
 
             return request(std::move(head),
-                           std::move(service),
-                           std::move(client),
+                           std::move(service_),
+                           std::move(client_),
                            std::move(client_delimiter),
                            std::move(metadata),
                            std::move(metadata_delimiter),
@@ -453,6 +474,8 @@ namespace msg
         enum detail::types static const type = detail::types::request;
     public:
         /*! \brief Create a new request.
+         *
+         * \param addr The address of the broker.
          *
          * \param service_name The name of the service the request
          * will be sent to.
@@ -492,10 +515,30 @@ namespace msg
             return data_;
         }
 
-        friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
-        friend auto send(request && msg)
-            -> std::tuple<message_iterator, message_iterator>;
+        auto service() -> std::string const;
 
+        auto inline address() const noexcept -> boost::optional<msg::address> {
+            return head.address();
+        }
+
+        auto inline address(msg::address const & addr) -> void {
+            head.address(addr);
+        }
+
+        auto inline client() const noexcept -> boost::optional<msg::address> {
+            if (client_) {
+                return std::string(client_->data<char>(), client_->size());
+            } else {
+                return boost::none;
+            }
+        }
+
+        auto inline client(msg::address const & addr) noexcept -> void {
+            client_ = part(addr.data(), addr.size());
+        }
+
+        friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
+        friend class detail::sender;
         friend class reply;
     };
 
@@ -505,14 +548,14 @@ namespace msg
     class reply
     {
         detail::header head;
-        optional_part client;
+        optional_part client_;
         part          client_delimiter;
         many_parts    metadata_;
         part          metadata_delimiter;
         many_parts    data_;
 
         reply(detail::header && head,
-              optional_part && client,
+              optional_part && client_,
               part          && client_delimiter,
               many_parts    && metadata,
               part          && metadata_delimiter,
@@ -527,14 +570,14 @@ namespace msg
             -> reply {
             using namespace detail;
 
-            auto client             = read_optional(iter, end);
+            auto client_            = read_optional(iter, end);
             auto client_delimiter   = read_part(iter, end);
             auto metadata           = read_many(iter, end);
             auto metadata_delimiter = read_part(iter, end);
             auto data               = read_many(iter, end);
 
             return reply(std::move(head),
-                         std::move(client),
+                         std::move(client_),
                          std::move(client_delimiter),
                          std::move(metadata),
                          std::move(metadata_delimiter),
@@ -568,8 +611,27 @@ namespace msg
             return data_;
         }
 
+        auto inline address() const noexcept -> boost::optional<msg::address> {
+            return head.address();
+        }
+
+        auto inline address(msg::address const & addr) -> void {
+            head.address(addr);
+        }
+
+        auto inline client() const noexcept -> boost::optional<msg::address> {
+            if (client_) {
+                return std::string(client_->data<char>(), client_->size());
+            } else {
+                return boost::none;
+            }
+        }
+
+        auto inline client(msg::address const & addr) noexcept -> void {
+            client_ = part(addr.data(), addr.size());
+        }
+
         friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
-        friend auto send(reply && msg)
-            -> std::tuple<message_iterator, message_iterator>;
+        friend class detail::sender;
     };
 };

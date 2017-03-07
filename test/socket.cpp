@@ -14,7 +14,7 @@ go_bandit([](){
 
         it("sends and recieves multi-part messages", [&](){
             auto msgs = msg_vec({"first", "", "last"});
-            client.send_multimsg(msgs.begin(), msgs.end());
+            client.send_multimsg(std::move(msgs));
             auto recv_msgs = server.recv_multimsg();
 
             AssertThat(msg2str(recv_msgs[0]), Equals("first"));
