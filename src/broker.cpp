@@ -1,4 +1,8 @@
 #include "broker.hpp"
+#include <spdlog/spdlog.h>
+
+
+auto logger = spdlog::stdout_color_st("broker");
 
 
 template <class message>
@@ -106,27 +110,33 @@ auto broker::operator()(msg::pong & msg) -> void
 
 auto broker::operator()(msg::request & msg) -> void
 {
+    // If the client part is missing, then the message was sent by
+    // a client, add their address to be able to return the reply
+    auto addr = get_addr_ensure(msg);
     if (!msg.client()) {
-        // If the client part is missing, then the message was sent by
-        // a client, add their address to be able to return the reply
-        msg.client(get_addr_ensure(msg));
+        msg.client(addr);
     }
+    // If the request came from a worker, mark the worker as free
+    auto maybe_worker = workers.find(addr);
+    if (maybe_worker != workers.end()) {
+        free_worker(maybe_worker->second);
+    }
+    // Are there any workers who provide this service?
     auto serv = msg.service();
-    auto workers_ = free_workers.find(serv);
-    // TODO: If the request came from a worker (the worker is bouncing
-    // the work), mark the worker as free
-    if (workers_ == free_workers.end()) {
-        // There are no workers that provide this service
-        // TODO: Return an error to the sender, or log an error, or both
+    auto maybe_workers = free_workers.find(serv);
+    if (maybe_workers == free_workers.end()) {
+        logger->warn("Recieved request for service {} "
+                     "which is provided by no workers",
+                     serv);
         return;
     }
-    auto & available_workers = workers_->second;
+    auto & available_workers = maybe_workers->second;
+
+    // If there are no workers available, queue the work
     if (available_workers.size() == 0) {
-        // No workers available, queue the work
         pending_requests[serv].push(std::move(msg));
         return;
-    } else {
-        // There is a worker available, send the work immediately
+    } else { // There is a worker available, send the work immediately
         auto worker = pop_any(available_workers);
         msg.address(worker);
         send_queue.push(msg::send(msg));

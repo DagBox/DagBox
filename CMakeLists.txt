@@ -11,6 +11,9 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -o0 -fprofile-arcs -ftest
 include_directories(./submodules/bandit)
 enable_testing()
 
+# Add the logging library
+include_directories(./submodules/spdlog/include)
+
 find_package(Boost COMPONENTS context)
 
 include_directories(/usr/local/include)
