@@ -64,21 +64,6 @@ public:
     /*! \brief Process a work reply. */
     auto operator()(msg::reply        & msg) -> void;
 
-
-
-    // IDEA: Create per-service stacks, and a global hash-map. Each
-    // service stack keeps track of available workers that can provide
-    // that service. The global hash-map maps worker addresses to some
-    // metadata about them like what service they provide and when we
-    // last saw them alive. When we get a request, we grab a worker
-    // from the relevant stack. When a reply comes in, we look up the
-    // id on the hash-map, and put the worker into the correct stack
-    // again as available.
-
-    // IDEA: For "last alive" times, use std::chrono::steay_clock
-
-
-
     /*! \brief Create and run a message broker.
      *
      * When this function is called, it will enter an **infinite
