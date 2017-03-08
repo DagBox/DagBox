@@ -11,13 +11,6 @@ using namespace snowhouse;
 #include <zmq.hpp>
 
 
-#define RUN_TEST()                              \
-    auto main(int argc, char* argv[]) -> int    \
-    {                                           \
-        return bandit::run(argc, argv);         \
-    }
-
-
 
 auto msg2str(zmq::message_t const & msg) -> std::string
 {

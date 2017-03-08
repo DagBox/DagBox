@@ -1,9 +1,11 @@
+#pragma once
+
 #include "helpers.hpp"
 #include "../src/socket.hpp"
 
 
 
-go_bandit([](){
+auto test_socket = [](){
     zmq::context_t context;
 
     describe("socket", [&](){
@@ -22,7 +24,4 @@ go_bandit([](){
             AssertThat(msg2str(recv_msgs[2]), Equals("last"));
         });
     });
-});
-
-
-RUN_TEST();
+};

@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.1.0 FATAL_ERROR)
 project(DagBox CXX)
 
+# Enable code coverage for debug builds
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/submodules/cmake-modules")
+INCLUDE(CodeCoverage)
+set(LCOV_REMOVE_EXTRA '*/test/*' '*/bandit/*')
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -o0 -fprofile-arcs -ftest-coverage")
+
 # Add the test framework
 include_directories(./submodules/bandit)
 enable_testing()

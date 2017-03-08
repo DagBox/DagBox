@@ -1,8 +1,10 @@
+#pragma once
+
 #include "helpers.hpp"
 #include "../src/message.hpp"
 
 
-go_bandit([](){
+auto test_message = [](){
     describe("message section readers", [](){
         describe("when reading sections", [](){
             it("can read parts", [](){
@@ -131,7 +133,4 @@ go_bandit([](){
             AssertThat(msg2str(rep.metadata()[0]), Equals("meta"));
         });
     });
-});
-
-
-RUN_TEST();
+};
