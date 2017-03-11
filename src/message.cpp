@@ -130,12 +130,10 @@ auto header::address(std::string const & addr) -> void
 
 auto header::send(part_sink & sink) -> void
 {
-    if (address_) {
-        sink(*address_);
-    }
-    sink(address_delim);
-    sink(protocol);
-    sink(type_);
+    send_section(sink, address_);
+    send_section(sink, address_delim);
+    send_section(sink, protocol);
+    send_section(sink, type_);
 }
 
 

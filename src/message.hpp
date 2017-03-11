@@ -4,7 +4,6 @@
 #include <tuple>
 #include <boost/variant.hpp>
 #include <boost/optional.hpp>
-#include <boost/coroutine2/coroutine.hpp>
 #include "exception.hpp"
 #include "socket.hpp"
 
@@ -132,26 +131,24 @@ namespace msg
         class header;
 
 
-        typedef boost::coroutines2::coroutine<part> part_stream;
-
-        typedef part_stream::push_type part_sink;
+        typedef std::vector<part> part_sink;
 
         auto inline send_section(part_sink & sink, part & p) -> void
         {
-            sink(p);
+            sink.push_back(std::move(p));
         }
 
         auto inline send_section(part_sink & sink, optional_part & p) -> void
         {
             if (p) {
-                sink(*p);
+                sink.push_back(std::move(*p));
             }
         }
 
         auto inline send_section(part_sink & sink, many_parts & ps) -> void
         {
             for (auto & p : ps) {
-                sink(p);
+                sink.push_back(std::move(p));
             }
         }
     };
@@ -204,7 +201,7 @@ namespace msg
      * [InputIterator](http://en.cppreference.com/w/cpp/concept/InputIterator)s
      * that contain message parts.
      */
-    typedef detail::part_stream::pull_type part_source;
+    typedef detail::part_sink part_source;
 
     namespace detail
     {
@@ -237,10 +234,9 @@ namespace msg
         -> part_source {
         using namespace detail;
 
-        part_source source([&](detail::part_sink & sink){
-            sender::send(msg, sink);
-        });
-        return source;
+        part_sink sink;
+        sender::send(msg, sink);
+        return sink;
     }
 
 
