@@ -7,8 +7,12 @@ auto socket::recv_multimsg() -> std::vector<zmq::message_t>
     bool has_more = true;
     while (has_more) {
         zmq::message_t message;
-        // recv in blocking mode should never give false
-        assert(recv(&message) == true);
+        auto recv_size = recv(&message);
+        if (recv_size == 0) { // recv timed out
+            // recv should only timeout if we recieved no message at all
+            assert(messages.size() == 0);
+            return messages;
+        }
         has_more = message.more();
         messages.push_back(std::move(message));
     }

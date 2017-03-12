@@ -5,12 +5,12 @@
 #include <queue>
 #include <unordered_set>
 #include <unordered_map>
-#include <chrono>
 #include <boost/variant.hpp>
 #include <boost/optional.hpp>
 #include <zmq.hpp>
 #include "message.hpp"
 #include "socket.hpp"
+#include "helpers.hpp"
 
 
 /*! \file broker.hpp
@@ -20,13 +20,6 @@
 
 namespace detail
 {
-    typedef std::chrono::time_point<std::chrono::steady_clock> time;
-
-    auto inline time_now() -> time
-    {
-        return std::chrono::steady_clock::now();
-    }
-
     struct worker
     {
         msg::address address;
