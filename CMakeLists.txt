@@ -11,6 +11,13 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -o0 -fprofile-arcs -ftest
 include_directories(./submodules/bandit)
 enable_testing()
 
+# Generate documentation
+include(DoxygenTargets)
+add_doxygen(./Doxyfile
+  OUTPUT_DIRECTORY "docs"
+  DOC_TARGET "docs"
+  NO_PDF)
+
 # Add the logging library
 include_directories(./submodules/spdlog/include)
 
