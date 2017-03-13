@@ -9,3 +9,9 @@ is currently in very early development.
 * boost
 * msgpack
 * lmdb
+
+# License
+
+DagBox is free open source software licensed under GNU Lesser General
+Public License version 3 or later. See the `COPYING` and
+`COPYING.LESSER` files.

@@ -179,7 +179,7 @@ should include code samples or links to other parts of the
 documentation that have code samples.
 
 ```
-/*! \brief Brief description.
+/*! \\brief Brief description.
  * 
  * Detailed description.
  */
