@@ -310,3 +310,23 @@ auto reply::send(detail::part_sink & sink) -> void
     send_section(sink, metadata_delimiter);
     send_section(sink, data_);
 }
+
+
+
+//////////////////// Reconnect
+
+reconnect::reconnect(detail::header && head)
+    : head(std::move(head))
+{}
+
+
+auto reconnect::make(msg::ping && p) noexcept -> reconnect
+{
+    return reconnect(std::move(p.head));
+}
+
+
+auto reconnect::send(detail::part_sink & sink) -> void
+{
+    // Reconnect messages only have a header, nothing to do here
+}

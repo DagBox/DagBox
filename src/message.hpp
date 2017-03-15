@@ -93,6 +93,7 @@ namespace msg
             pong = 0x03,
             request = 0x04,
             reply = 0x05,
+            reconnect = 0x06,
         };
         auto const type_upper_bound = static_cast<char>(types::reply);
         auto const type_lower_bound = static_cast<char>(types::registration);
@@ -399,6 +400,7 @@ namespace msg
         friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
         friend class detail::sender;
         friend class pong;
+        friend class reconnect;
     };
 
 
@@ -424,7 +426,7 @@ namespace msg
 
         enum detail::types static const type = detail::types::pong;
     public:
-        /*\ brief Create a response for a heartbeat message.
+        /*! \brief Create a response for a heartbeat message.
          *
          * When a [ping](\ref ping) is recieved, it can be passed to
          * this function to create a reply for it.
@@ -644,6 +646,38 @@ namespace msg
         auto inline client(msg::address const & addr) noexcept -> void {
             client_ = part(addr.data(), addr.size());
         }
+
+        friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
+        friend class detail::sender;
+    };
+
+    /*! \brief A re-connect message signalling a worker to re-register.
+     *
+     * When the broker receives a ping from a worker that is not
+     * registered with it, this can mean that the worker expects that
+     * it is registered. In that case, the broker will reply with a
+     * reconnect message to signal the worker that it is not actually
+     * registered.
+     */
+    class reconnect
+    {
+        detail::header head;
+
+        reconnect(detail::header && head);
+
+        auto send(detail::part_sink & sink) -> void;
+
+        template <class iterator>
+        auto static read(detail::header && h, iterator & iter, iterator & end)
+            -> reconnect {
+            return reconnect(std::move(h));
+        }
+
+        enum detail::types static const type = detail::types::reconnect;
+    public:
+        /*! \brief Create a message signalling a worker to re-register.
+         */
+        auto static make(ping && p) noexcept -> reconnect;
 
         friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
         friend class detail::sender;

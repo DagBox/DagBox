@@ -109,8 +109,8 @@ auto broker::operator()(msg::ping & msg) -> void
     auto addr = get_addr_ensure(msg);
     auto worker_ = workers.find(addr);
     if (worker_ == workers.end()) {
-        // The worker isn't registered
-        // TODO: Ask the worker to re-register
+        // The worker isn't registered, ask it to re-register
+        send_queue.push(msg::send(msg::reconnect::make(std::move(msg))));
     } else {
         auto & worker = worker_->second;
         worker.last_seen = detail::time_now();
@@ -178,4 +178,10 @@ auto broker::operator()(msg::reply & msg) -> void
     }
     msg.address(*client);
     send_queue.push(msg::send(msg));
+}
+
+
+auto broker::operator()(msg::reconnect & msg) -> void
+{
+    logger->warn("Recieved a reconnect message, which is for workers only");
 }

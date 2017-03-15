@@ -124,6 +124,11 @@ auto test_message = [](){
             auto ping = msg::ping::make();
             auto pong = msg::pong::make(std::move(ping));
         });
+
+        it("can be turned into reconnect messages", [](){
+            auto ping = msg::ping::make();
+            auto recn = msg::reconnect::make(std::move(ping));
+        });
     });
 
     describe("request messages", [](){

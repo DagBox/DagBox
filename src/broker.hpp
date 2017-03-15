@@ -74,6 +74,8 @@ public:
     auto operator()(msg::request      & msg) -> void;
     /*! \brief Process a work reply. */
     auto operator()(msg::reply        & msg) -> void;
+    /*! \brief Process a reconnect message. */
+    auto operator()(msg::reconnect    & msg) -> void;
 
     /*! \brief Create and run a message broker.
      *
