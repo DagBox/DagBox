@@ -1,5 +1,5 @@
 /*
-  Copyright 2017 Kaan Genç
+  Copyright 2017 Kaan Genç, Melis Narin Kaya
 
   This file is part of DagBox.
 
@@ -125,9 +125,42 @@ auto test_message = [](){
             auto pong = msg::pong::make(std::move(ping));
         });
 
+        it("can be sent", [](){
+            auto ping = msg::ping::make();
+            auto send = msg::send(std::move(ping));
+
+            AssertThat(send, HasLength(3));
+            AssertThat(*send[2].data<char>(), Equals(0x02));
+            AssertThat(send[0].size(), Equals(0));
+
+        });
+
+        it("can be received", [](){
+            auto recv_msg = msg::read(msg::send(msg::ping::make()));
+        });
+
         it("can be turned into reconnect messages", [](){
             auto ping = msg::ping::make();
             auto recn = msg::reconnect::make(std::move(ping));
+        });
+    });
+
+    describe("register messages", [](){
+        it("can be created", [](){
+            auto reg = msg::registration::make("test");
+           // AssertThat(reg.service(), Equals("test"));
+        });
+    });
+
+    describe("pong messages", [](){
+        it("can be sent", [](){
+            auto pong = msg::send(msg::pong::make(msg::ping::make()));
+            AssertThat(pong, HasLength(3));
+            AssertThat(*pong[2].data<char>(), Equals(0x03));
+            AssertThat(pong[0].size(), Equals(0));
+        });
+        it("can be received", [](){
+            auto pong =  msg::read(msg::send(msg::pong::make(msg::ping::make())));
         });
     });
 

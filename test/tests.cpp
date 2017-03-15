@@ -1,5 +1,5 @@
 /*
-  Copyright 2017 Kaan Genç
+  Copyright 2017 Kaan Genç, Melis Narin Kaya
 
   This file is part of DagBox.
 
@@ -16,6 +16,7 @@
   You should have received a copy of the GNU Lesser General Public
   License along with DagBox.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <string>
 #include <bandit/bandit.h>
 #include "socket.hpp"
 #include "message.hpp"

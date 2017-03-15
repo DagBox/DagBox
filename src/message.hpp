@@ -1,5 +1,5 @@
 /*
-  Copyright 2017 Kaan Genç
+  Copyright 2017 Kaan Genç, Melis Narin Kaya
 
   This file is part of DagBox.
 
@@ -122,13 +122,13 @@ namespace msg
             // left, then we found the optional part
             ++iter;
             if (iter == end) {
-                return first;
+                return std::move(first);
             }
             // If the first part is not empty and the second part is, then
             // we found the optional part
             part second = std::move(*iter);
             if (second.size() == 0) {
-                return first;
+                return std::move(first);
             }
 
             // If both the first and the second part are not empty, then
