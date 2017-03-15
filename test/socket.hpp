@@ -38,7 +38,7 @@ auto test_socket = [](){
             auto recv_msgs = server.recv_multimsg();
 
             AssertThat(msg2str(recv_msgs[0]), Equals("first"));
-            AssertThat(recv_msgs[1].size(), Equals(0));
+            AssertThat(recv_msgs[1].size(), Equals<uint>(0));
             AssertThat(msg2str(recv_msgs[2]), Equals("last"));
         });
     });

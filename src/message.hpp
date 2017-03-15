@@ -179,6 +179,7 @@ namespace msg
     class pong;
     class request;
     class reply;
+    class reconnect;
 
     /*! \brief Any message type.
      *
@@ -191,7 +192,8 @@ namespace msg
         ping,
         pong,
         request,
-        reply
+        reply,
+        reconnect
         > any_message;
 
 
@@ -380,7 +382,7 @@ namespace msg
         auto send(detail::part_sink & sink) -> void;
 
         template <class iterator>
-        auto static read(detail::header && h, iterator & iter, iterator & end)
+        auto static read(detail::header && h, iterator &, iterator &)
             -> ping {
             return ping(std::move(h));
         }
@@ -419,7 +421,7 @@ namespace msg
         auto send(detail::part_sink & sink) -> void;
 
         template <class iterator>
-        auto static read(detail::header && h, iterator & iter, iterator & end)
+        auto static read(detail::header && h, iterator &, iterator &)
             -> pong {
             return pong(std::move(h));
         }
@@ -668,7 +670,7 @@ namespace msg
         auto send(detail::part_sink & sink) -> void;
 
         template <class iterator>
-        auto static read(detail::header && h, iterator & iter, iterator & end)
+        auto static read(detail::header && h, iterator &, iterator &)
             -> reconnect {
             return reconnect(std::move(h));
         }

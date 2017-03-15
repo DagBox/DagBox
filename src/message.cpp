@@ -47,7 +47,16 @@ auto msg::read(std::vector<zmq::message_t> && parts) -> any_message
     case types::reply:
         return reply::read(std::move(h), iter, end_);
         break;
+    case types::reconnect:
+        return reconnect::read(std::move(h), iter, end_);
+        break;
     }
+
+    // The compiler can't recognise that the switch above will always
+    // return when all cases are handled, and gives an unnecessary
+    // warning about the control reaching the end of the
+    // function. Adding this exception to silence that warning.
+    throw exception::runtime_error("We should never hit this exception");
 }
 
 
@@ -194,7 +203,7 @@ auto ping::make() noexcept -> ping
 }
 
 
-auto ping::send(detail::part_sink & sink) -> void
+auto ping::send(detail::part_sink &) -> void
 {
     // We do nothing here, because ping messages don't have any
     // parts other than their header
@@ -216,7 +225,7 @@ auto pong::make(ping && p) noexcept -> pong
 }
 
 
-auto pong::send(detail::part_sink & sink) -> void
+auto pong::send(detail::part_sink &) -> void
 {
     // We do nothing here, because pong messages don't have any parts
     // other than their header
@@ -326,7 +335,7 @@ auto reconnect::make(msg::ping && p) noexcept -> reconnect
 }
 
 
-auto reconnect::send(detail::part_sink & sink) -> void
+auto reconnect::send(detail::part_sink &) -> void
 {
     // Reconnect messages only have a header, nothing to do here
 }

@@ -181,7 +181,7 @@ auto broker::operator()(msg::reply & msg) -> void
 }
 
 
-auto broker::operator()(msg::reconnect & msg) -> void
+auto broker::operator()(msg::reconnect &) -> void
 {
     logger->warn("Recieved a reconnect message, which is for workers only");
 }

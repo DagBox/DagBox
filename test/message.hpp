@@ -130,8 +130,8 @@ auto test_message = [](){
             auto send = msg::send(std::move(ping));
 
             AssertThat(send, HasLength(3));
-            AssertThat(*send[2].data<char>(), Equals(0x02));
-            AssertThat(send[0].size(), Equals(0));
+            AssertThat(*send[2].data<uint8_t>(), Equals(0x02));
+            AssertThat(send[0].size(), Equals<uint>(0));
 
         });
 
@@ -156,8 +156,8 @@ auto test_message = [](){
         it("can be sent", [](){
             auto pong = msg::send(msg::pong::make(msg::ping::make()));
             AssertThat(pong, HasLength(3));
-            AssertThat(*pong[2].data<char>(), Equals(0x03));
-            AssertThat(pong[0].size(), Equals(0));
+            AssertThat(*pong[2].data<uint8_t>(), Equals(0x03));
+            AssertThat(pong[0].size(), Equals<uint>(0));
         });
         it("can be received", [](){
             auto pong =  msg::read(msg::send(msg::pong::make(msg::ping::make())));

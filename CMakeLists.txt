@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.1.0 FATAL_ERROR)
 project(DagBox CXX)
 
+# Enable warnings for all builds
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+
 # Enable code coverage for debug builds
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/submodules/cmake-modules")
 INCLUDE(CodeCoverage)
