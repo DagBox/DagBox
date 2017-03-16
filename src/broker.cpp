@@ -90,6 +90,23 @@ auto broker::free_worker(detail::worker const & worker) -> void
 }
 
 
+auto broker::get_worker(decltype(free_workers[""]) & available_workers)
+    -> boost::optional<detail::worker &>
+{
+    if (available_workers.size() == 0) {
+        return boost::none;
+    }
+    auto worker_addr = pop_any(available_workers);
+    auto & worker = workers[worker_addr];
+    if ((detail::time_now() - worker.last_seen) >= worker_timeout) {
+        // Worker is likely dead, remove it and find a new one
+        workers.erase(worker_addr);
+        return get_worker(available_workers);
+    }
+    return worker;
+}
+
+
 auto broker::operator()(msg::registration & msg) -> void
 {
     auto serv = msg.service();
@@ -140,24 +157,21 @@ auto broker::operator()(msg::request & msg) -> void
         free_worker(maybe_worker->second);
     }
     // Are there any workers who provide this service?
-    auto serv = msg.service();
-    auto maybe_workers = free_workers.find(serv);
+    auto service_name = msg.service();
+    auto maybe_workers = free_workers.find(service_name);
     if (maybe_workers == free_workers.end()) {
         logger->warn("Recieved request for service {} "
                      "which is provided by no workers",
-                     serv);
+                     service_name);
         return;
     }
     auto & available_workers = maybe_workers->second;
-
-    // If there are no workers available, queue the work
-    if (available_workers.size() == 0) {
-        pending_requests[serv].push(std::move(msg));
-        return;
-    } else { // There is a worker available, send the work immediately
-        auto worker = pop_any(available_workers);
-        msg.address(worker);
-        send_queue.push(msg::send(msg));
+    auto found_worker = get_worker(available_workers);
+    if (found_worker) {
+        msg.address(found_worker->address);
+        send_queue.push(msg::send(std::move(msg)));
+    } else {
+        pending_requests[service_name].push(std::move(msg));
     }
 }
 

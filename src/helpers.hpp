@@ -23,7 +23,8 @@
 
 namespace detail
 {
-    typedef std::chrono::time_point<std::chrono::steady_clock> time;
+    typedef std::chrono::steady_clock clock;
+    typedef std::chrono::time_point<clock> time;
 
     auto inline time_now() -> time
     {

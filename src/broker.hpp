@@ -54,6 +54,7 @@ class broker
     : public boost::static_visitor<>
 {
     auto const static socket_type = zmq::socket_type::router;
+    auto const static constexpr worker_timeout = std::chrono::milliseconds{1000};
     socket sock;
     std::queue<msg::part_source> send_queue;
     broker(zmq::context_t & ctx, std::string const & addr);
@@ -63,6 +64,8 @@ class broker
     std::unordered_map<std::string, std::queue<msg::request>> pending_requests;
 
     auto free_worker(detail::worker const & worker) -> void;
+    auto get_worker(decltype(free_workers[""]) & available_workers)
+        -> boost::optional<detail::worker &>;
 public:
     /*! \brief Process a registration message. */
     auto operator()(msg::registration & msg) -> void;
