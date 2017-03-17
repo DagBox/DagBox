@@ -352,7 +352,9 @@ namespace msg
 
         /*! \brief Get the service name this message is registering for.
          */
-        auto service() -> std::string const;
+        auto inline service() const noexcept -> std::string const{
+            return std::string(service_.data<char>(), service_.size());
+        }
 
         auto inline address() const noexcept -> boost::optional<msg::address> {
             return head.address();
@@ -533,7 +535,9 @@ namespace msg
             return data_;
         }
 
-        auto service() -> std::string const;
+        auto inline service() const noexcept -> std::string {
+            return std::string(service_.data<char>(), service_.size());
+        }
 
         auto inline address() const noexcept -> boost::optional<msg::address> {
             return head.address();

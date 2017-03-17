@@ -7,7 +7,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 # Enable code coverage for debug builds
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/submodules/cmake-modules")
 INCLUDE(CodeCoverage)
-set(LCOV_REMOVE_EXTRA '*/test/*' '*/bandit/*')
+set(LCOV_REMOVE_EXTRA '*/test/*' '*/bandit/*' '*/v1/*')
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -o0 -fprofile-arcs -ftest-coverage")
 
 # Add the test framework

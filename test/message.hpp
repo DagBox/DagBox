@@ -137,6 +137,7 @@ auto test_message = [](){
 
         it("can be received", [](){
             auto recv_msg = msg::read(msg::send(msg::ping::make()));
+            boost::get<msg::ping>(recv_msg);
         });
 
         it("can be turned into reconnect messages", [](){
@@ -148,7 +149,20 @@ auto test_message = [](){
     describe("register messages", [](){
         it("can be created", [](){
             auto reg = msg::registration::make("test");
-           // AssertThat(reg.service(), Equals("test"));
+            AssertThat(reg.service(), Equals("test"));
+        });
+        it("can be sent", [](){
+            auto reg = msg::registration::make("file");
+            auto send = msg::send(std::move(reg));
+
+            AssertThat(send, HasLength(4));
+            AssertThat(*send[2].data<uint8_t>(), Equals(0x01));
+            AssertThat(msg2str(send[3]), Equals("file"));
+        });
+        it("can be received", [](){
+            auto recv_msg = msg::read(msg::send(msg::registration::make("file")));
+            auto & message = boost::get<msg::registration>(recv_msg);
+            AssertThat(message.service(), Equals("file"));
         });
     });
 
@@ -161,8 +175,22 @@ auto test_message = [](){
         });
         it("can be received", [](){
             auto pong =  msg::read(msg::send(msg::pong::make(msg::ping::make())));
+            boost::get<msg::pong>(pong);
         });
     });
+
+    /*describe("reply messages",[](){
+        it("can be sent",[](){
+            auto rep = msg::reply::make(msg::request::make("service",
+                                                           msg_vec({"meta"}),
+                                                           msg_vec({"data", "more data"})));
+            auto send = msg::send(std::move(rep));
+            AssertThat(send, HasLength(8));
+            AssertThat(*send[2].data<uint8_t>(), Equals(0x05));
+            AssertThat(msg2str(send[3]), Equals("service"));
+
+        });
+    }); */
 
     describe("request messages", [](){
         it("can be created", [](){
@@ -176,6 +204,25 @@ auto test_message = [](){
             AssertThat(req.data(), HasLength(2));
             AssertThat(msg2str(req.data()[0]), Equals("data"));
             AssertThat(msg2str(req.data()[1]), Equals("more data"));
+        });
+        it("can be sent",[](){
+            auto req = msg::request::make("service",
+                                          msg_vec({"meta"}),
+                                          msg_vec({"data", "more data"}));
+            auto send = msg::send(std::move(req));
+            AssertThat(send, HasLength(9));
+            AssertThat(*send[2].data<uint8_t>(), Equals(0x04));
+            AssertThat(msg2str(send[3]), Equals("service"));
+        });
+        it("can be received",[](){
+            auto req =  msg::read(msg::send(msg::request::make("service",
+                                                               msg_vec({"meta"}),
+                                                               msg_vec({"data", "more data"}))));
+            auto & message = boost::get<msg::request>(req);
+            AssertThat(message.service(), Equals("service"));
+            AssertThat(msg2str(message.metadata()[0]), Equals("meta"));
+            AssertThat(msg2str(message.data()[0]), Equals("data"));
+            AssertThat(msg2str(message.data()[1]), Equals("more data"));
         });
 
         it("can be turned into reply messages", [](){
