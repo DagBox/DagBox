@@ -179,18 +179,16 @@ auto test_message = [](){
         });
     });
 
-    /*describe("reply messages",[](){
+    describe("reply messages",[](){
         it("can be sent",[](){
             auto rep = msg::reply::make(msg::request::make("service",
                                                            msg_vec({"meta"}),
                                                            msg_vec({"data", "more data"})));
             auto send = msg::send(std::move(rep));
             AssertThat(send, HasLength(8));
-            AssertThat(*send[2].data<uint8_t>(), Equals(0x05));
-            AssertThat(msg2str(send[3]), Equals("service"));
-
+            AssertThat((uint)*send[2].data<uint8_t>(), Equals<uint>(0x05));
         });
-    }); */
+    });
 
     describe("request messages", [](){
         it("can be created", [](){

@@ -300,12 +300,14 @@ reply::reply(header        && head,
 
 auto reply::make(msg::request && r) -> reply
 {
-    return reply(std::move(r.head),
+    auto rep = reply(std::move(r.head),
                  std::move(r.client_),
                  std::move(r.client_delimiter),
                  std::move(r.metadata_),
                  std::move(r.metadata_delimiter),
                  std::move(r.data_));
+    rep.head.type(reply::type);
+    return rep;
 }
 
 
@@ -331,7 +333,9 @@ reconnect::reconnect(detail::header && head)
 
 auto reconnect::make(msg::ping && p) noexcept -> reconnect
 {
-    return reconnect(std::move(p.head));
+    auto rec = reconnect(std::move(p.head));
+    rec.head.type(reconnect::type);
+    return rec;
 }
 
 
