@@ -19,9 +19,11 @@
 #pragma once
 
 #include <chrono>
+#include <thread>
+#include <atomic>
 
 
-namespace detail
+namespace detail_time
 {
     typedef std::chrono::steady_clock clock;
     typedef std::chrono::time_point<clock> time;

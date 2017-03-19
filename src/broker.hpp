@@ -36,36 +36,33 @@
  */
 
 
-namespace detail
-{
-    struct worker
-    {
-        msg::address address;
-        std::string service;
-        time last_seen;
-    };
-}
-
-
 
 /*! \brief Message broker, which routes and distributes work.
  */
 class broker
     : public boost::static_visitor<>
 {
+    struct worker
+    {
+        msg::address address;
+        std::string service;
+        detail_time::time last_seen;
+    };
+
+    std::string const addr;
     auto const static socket_type = zmq::socket_type::router;
-    auto const static constexpr worker_timeout = std::chrono::milliseconds{1000};
+    std::chrono::milliseconds const worker_timeout;
+    int run_max_wait_ms = 200;
     socket sock;
     std::queue<msg::part_source> send_queue;
-    broker(zmq::context_t & ctx, std::string const & addr);
 
-    std::unordered_map<msg::address, detail::worker> workers;
+    std::unordered_map<msg::address, worker> workers;
     std::unordered_map<std::string, std::unordered_set<msg::address>> free_workers;
     std::unordered_map<std::string, std::queue<msg::request>> pending_requests;
 
-    auto free_worker(detail::worker const & worker) -> void;
+    auto free_worker(worker const & worker) -> void;
     auto get_worker(decltype(free_workers[""]) & available_workers)
-        -> boost::optional<detail::worker &>;
+        -> boost::optional<worker &>;
 public:
     /*! \brief Process a registration message. */
     auto operator()(msg::registration & msg) -> void;
@@ -80,11 +77,18 @@ public:
     /*! \brief Process a reconnect message. */
     auto operator()(msg::reconnect    & msg) -> void;
 
-    /*! \brief Create and run a message broker.
+    broker(zmq::context_t & ctx,
+           std::string const & addr,
+           std::chrono::milliseconds worker_timeout);
+
+    /*! \brief Run the message broker for one iteration.
      *
-     * When this function is called, it will enter an **infinite
-     * loop**. Do not call this function directly, create a new thread
-     * or a process to run it.
+     * This function should be called repeatedly to run the
+     * broker. When called, if there are no messages to be recieved,
+     * it will wait for some time.
+     *
+     * Instead of calling this function directly, consider using
+     * [component](\ref component) to run the broker.
      */
-    auto static run(zmq::context_t & ctx, std::string const & addr) -> void;
+    auto run() -> void;
 };

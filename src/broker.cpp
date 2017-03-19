@@ -49,32 +49,38 @@ auto pop_any(std::unordered_set<T> & set) -> T &&
 }
 
 
-broker::broker(zmq::context_t & ctx, std::string const & addr)
-    : sock(ctx, socket_type)
+broker::broker(zmq::context_t & ctx,
+               std::string const & addr,
+               std::chrono::milliseconds worker_timeout)
+    : addr(addr),
+      worker_timeout(worker_timeout),
+      sock(ctx, socket_type)
 {
+    sock.setsockopt(ZMQ_RCVTIMEO, run_max_wait_ms);
     sock.bind(addr);
 }
 
 
-auto broker::run(zmq::context_t & ctx, const std::string & addr) -> void
+auto broker::run() -> void
 {
-    broker br(ctx, addr);
-    // Enter an infinite loop, processing messages
-    while (true) {
-        auto message = msg::read(br.sock.recv_multimsg());
-        boost::apply_visitor(br, message);
+    auto received = sock.recv_multimsg();
+    if (received.size() == 0) {
+        // recv timed out, there is no message to process
+        return;
+    }
+    auto message = msg::read(std::move(received));
+    boost::apply_visitor(*this, message);
 
-        // Processing the message may result in 0 or more messages
-        // that need to be sent
-        while (br.send_queue.size() > 0) {
-            br.sock.send_multimsg(std::move(br.send_queue.front()));
-            br.send_queue.pop();
-        }
+    // Processing the message may result in 0 or more messages
+    // that need to be sent
+    while (send_queue.size() > 0) {
+        sock.send_multimsg(std::move(send_queue.front()));
+        send_queue.pop();
     }
 }
 
 
-auto broker::free_worker(detail::worker const & worker) -> void
+auto broker::free_worker(worker const & worker) -> void
 {
     auto & pending = pending_requests[worker.service];
     if (pending.size() == 0) {
@@ -91,14 +97,14 @@ auto broker::free_worker(detail::worker const & worker) -> void
 
 
 auto broker::get_worker(decltype(free_workers[""]) & available_workers)
-    -> boost::optional<detail::worker &>
+    -> boost::optional<worker &>
 {
     if (available_workers.size() == 0) {
         return boost::none;
     }
     auto worker_addr = pop_any(available_workers);
     auto & worker = workers[worker_addr];
-    if ((detail::time_now() - worker.last_seen) >= worker_timeout) {
+    if ((detail_time::time_now() - worker.last_seen) >= worker_timeout) {
         // Worker is likely dead, remove it and find a new one
         workers.erase(worker_addr);
         return get_worker(available_workers);
@@ -114,7 +120,7 @@ auto broker::operator()(msg::registration & msg) -> void
     workers[addr] = {
         .address = addr,
         .service = serv,
-        .last_seen = detail::time_now(),
+        .last_seen = detail_time::time_now(),
     };
     send_queue.push(msg::send(msg));
     free_worker(workers[addr]);
@@ -130,7 +136,7 @@ auto broker::operator()(msg::ping & msg) -> void
         send_queue.push(msg::send(msg::reconnect::make(std::move(msg))));
     } else {
         auto & worker = worker_->second;
-        worker.last_seen = detail::time_now();
+        worker.last_seen = detail_time::time_now();
         send_queue.push(msg::send(msg::pong::make(std::move(msg))));
     }
 }
@@ -139,7 +145,7 @@ auto broker::operator()(msg::ping & msg) -> void
 auto broker::operator()(msg::pong & msg) -> void
 {
     auto addr = get_addr_ensure(msg);
-    workers[addr].last_seen = detail::time_now();
+    workers[addr].last_seen = detail_time::time_now();
 }
 
 
@@ -181,7 +187,7 @@ auto broker::operator()(msg::reply & msg) -> void
     // Mark the worker who sent the reply as free
     auto addr = get_addr_ensure(msg);
     auto & worker = workers[addr];
-    worker.last_seen = detail::time_now();
+    worker.last_seen = detail_time::time_now();
     free_worker(worker);
     // Send the reply to the client
     auto client = msg.client();

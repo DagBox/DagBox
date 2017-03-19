@@ -20,11 +20,13 @@
 #include <bandit/bandit.h>
 #include "socket.hpp"
 #include "message.hpp"
+#include "broker.hpp"
 
 
 go_bandit([](){
     test_socket();
     test_message();
+    test_broker();
 });
 
 
