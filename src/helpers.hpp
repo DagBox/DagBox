@@ -31,3 +31,35 @@ namespace detail
         return std::chrono::steady_clock::now();
     }
 }
+
+
+/*! \brief Run a component on a thread.
+ *
+ * Creates a thread and runs a component in that thread. The component
+ * is a class with a public constructor and a `run(void)` method. The
+ * `run` method will be continuously called until the component is
+ * destructed.
+ */
+template <class C>
+class component
+{
+    std::thread thread;
+    std::atomic_bool condition;
+public:
+    template <class ...Args> component(Args && ... args)
+        : condition(true)
+    {
+        thread = std::thread([&](){
+            C comp(args...);
+            while (condition.load()) {
+                comp.run();
+            }
+        });
+    }
+
+    ~component()
+    {
+        condition.store(false);
+        thread.join();
+    }
+};
