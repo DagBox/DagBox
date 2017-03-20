@@ -146,6 +146,21 @@ auto test_message = [](){
         });
     });
 
+    describe("reconnect messages", [](){
+         it("can be sent",[](){
+             auto recn = msg::reconnect::make(msg::ping::make());
+             auto send = msg::send(std::move(recn));
+
+             AssertThat(send, HasLength(3));
+             AssertThat(*send[2].data<uint8_t>(), Equals(0x06));
+             AssertThat(send[0].size(), Equals<uint>(0));
+         });
+        it("can be received",[](){
+            auto recv_msg = msg::read(msg::send(msg::reconnect::make(msg::ping::make())));
+            boost::get<msg::reconnect>(recv_msg);
+        });
+    });
+
     describe("register messages", [](){
         it("can be created", [](){
             auto reg = msg::registration::make("test");
@@ -187,6 +202,20 @@ auto test_message = [](){
             auto send = msg::send(std::move(rep));
             AssertThat(send, HasLength(8));
             AssertThat((uint)*send[2].data<uint8_t>(), Equals<uint>(0x05));
+        });
+        it("can be received",[](){
+            auto rep =
+                    msg::read(
+                            msg::send(
+                                    msg::reply::make(
+                                            msg::request::make(
+                                                    "service",
+                                                    msg_vec({"meta"}),
+                                                    msg_vec({"data", "more data"})))));
+            auto & message = boost::get<msg::reply>(rep);
+            AssertThat(msg2str(message.metadata()[0]), Equals("meta"));
+            AssertThat(msg2str(message.data()[0]), Equals("data"));
+            AssertThat(msg2str(message.data()[1]), Equals("more data"));
         });
     });
 

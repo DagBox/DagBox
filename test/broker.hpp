@@ -18,6 +18,7 @@
  */
 #pragma once
 
+#include <memory>
 #include <zmq.hpp>
 #include "helpers.hpp"
 #include "../src/broker.hpp"
@@ -45,6 +46,18 @@ auto test_broker = [](){
             sock.send_multimsg(msg::send(msg::ping::make()));
             auto rep = msg::read(sock.recv_multimsg());
             boost::get<msg::pong>(rep);
+        });
+
+        it("can handle requests and replies", [&](){
+            sock.send_multimsg(msg::send(msg::request::make("test_service",
+                                                            msg_vec({"meta"}),
+                                                            msg_vec({"data", "more data"}))));
+            auto req = msg::read(sock.recv_multimsg());
+            auto & sent_request = boost::get<msg::request>(req);
+
+            sock.send_multimsg(msg::send(msg::reply::make(std::move(sent_request))));
+            auto rep = msg::read(sock.recv_multimsg());
+            boost::get<msg::reply>(rep);
         });
     });
 };

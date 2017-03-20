@@ -95,7 +95,7 @@ namespace msg
             reply = 0x05,
             reconnect = 0x06,
         };
-        auto const type_upper_bound = static_cast<char>(types::reply);
+        auto const type_upper_bound = static_cast<char>(types::reconnect);
         auto const type_lower_bound = static_cast<char>(types::registration);
 
 

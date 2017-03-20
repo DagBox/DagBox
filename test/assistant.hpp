@@ -53,13 +53,20 @@ auto test_assistant() -> void {
         sock.setsockopt(ZMQ_RCVTIMEO, 4000); // in ms
         sock.bind(addr);
 
-        component<assistant<test_worker_echo>> worker_component(ctx, addr, 500);
+        assistant<test_worker_echo> echo_worker(ctx, addr, 500);
 
         it("sends ping if it hasn't received anything", [&](){
             // We haven't sent anything, the assistant should send a ping
             // after waiting for some time
+            echo_worker.run();
             auto msg = msg::read(sock.recv_multimsg());
             boost::get<msg::ping>(msg);
+        });
+        it("passes messages to the worker", [&](){
+            sock.send_multimsg(msg::send(msg::registration::make("test service")));
+            echo_worker.run();
+            auto msg = msg::read(sock.recv_multimsg());
+            boost::get<msg::registration>(msg);
         });
     });
 };
