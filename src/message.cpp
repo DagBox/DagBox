@@ -26,6 +26,10 @@ using namespace detail;
 
 auto msg::read(std::vector<zmq::message_t> && parts) -> any_message
 {
+    if (parts.size() == 0) {
+        throw std::logic_error("Unable to read empty message");
+    }
+
     auto iter = begin(parts);
     auto end_ = end(parts);
 
