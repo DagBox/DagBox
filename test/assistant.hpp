@@ -23,25 +23,13 @@
 
 
 
-#define TEST_WORKER_ECHO_OP(msg_class)                  \
-    auto operator()(msg_class & msg)                    \
-        -> boost::optional<std::vector<zmq::message_t>> \
-    {                                                   \
-        return msg::send(std::move(msg));               \
-    }
-
-
-
-// A worker that echoes whatever message given.
+// A worker that echoes the requests.
 struct test_worker_echo
-    : boost::static_visitor<boost::optional<std::vector<zmq::message_t>>>
 {
-    TEST_WORKER_ECHO_OP(msg::ping);
-    TEST_WORKER_ECHO_OP(msg::pong);
-    TEST_WORKER_ECHO_OP(msg::registration);
-    TEST_WORKER_ECHO_OP(msg::request);
-    TEST_WORKER_ECHO_OP(msg::reply);
-    TEST_WORKER_ECHO_OP(msg::reconnect);
+    std::string const service_name = "test worker echo";
+    auto operator()(msg::request && req) -> std::vector<zmq::message_t> {
+        return msg::send(req);
+    }
 };
 
 
@@ -55,18 +43,10 @@ auto test_assistant() -> void {
 
         assistant<test_worker_echo> echo_worker(ctx, addr, 500);
 
-        it("sends ping if it hasn't received anything", [&](){
-            // We haven't sent anything, the assistant should send a ping
-            // after waiting for some time
-            echo_worker.run();
+        it("registers itself when created", [&](){
             auto msg = msg::read(sock.recv_multimsg());
-            boost::get<msg::ping>(msg);
-        });
-        it("passes messages to the worker", [&](){
-            sock.send_multimsg(msg::send(msg::registration::make("test service")));
-            echo_worker.run();
-            auto msg = msg::read(sock.recv_multimsg());
-            boost::get<msg::registration>(msg);
+            auto reg = std::move(boost::get<msg::registration>(msg));
+            sock.send_multimsg(msg::send(reg));
         });
     });
 };

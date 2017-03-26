@@ -21,9 +21,14 @@
 #include <string>
 #include <boost/variant.hpp>
 #include <zmq.hpp>
+#include <spdlog/spdlog.h>
 #include "message.hpp"
 #include "socket.hpp"
 #include "helpers.hpp"
+
+
+typedef std::vector<zmq::message_t> sendable;
+typedef boost::optional<sendable> maybe_sendable;
 
 
 /*! \brief An assistant for running workers.
@@ -37,11 +42,18 @@
  */
 template <class worker>
 class assistant
+    : public boost::static_visitor<maybe_sendable>
 {
     auto const static socket_type = zmq::socket_type::dealer;
 
+    auto register_worker() -> sendable
+    {
+        return msg::send(msg::registration::make(work.service_name));
+    }
+
     worker work;
     socket sock;
+    std::shared_ptr<spdlog::logger> logger; // = spdlog::stdout_color_st(work.service_name + " assistant");
 public:
     /*! \brief Create an assistant that runs `worker`.
      *
@@ -53,12 +65,16 @@ public:
               std::string const & broker_addr,
               int worker_timeout,
               Args ... args)
-        : work(args...), sock(ctx, socket_type)
+        : work(args...),
+          sock(ctx, socket_type),
+          logger(spdlog::stdout_color_st(work.service_name + " assistant"))
     {
         // Timeout on recv so we can stop waiting and send a ping to the
         // broker
         sock.setsockopt(ZMQ_RCVTIMEO, worker_timeout);
         sock.connect(broker_addr);
+
+        sock.send_multimsg(register_worker());
     }
 
     auto run() -> void {
@@ -69,10 +85,44 @@ public:
         } else {
             // If the recv didn't time out
             auto message = msg::read(std::move(received));
-            auto maybe_reply = boost::apply_visitor(work, message);
+            auto maybe_reply = boost::apply_visitor(*this, message);
             if (maybe_reply) {
                 sock.send_multimsg(std::move(*maybe_reply));
             }
         }
+    }
+
+    /*! \brief Process a registration message. */
+    auto operator()(msg::registration & msg) -> maybe_sendable {
+        logger->debug("Successfully registered for service {}", msg.service());
+        return boost::none;
+    }
+
+    /*! \brief Process a heartbeat message. */
+    auto operator()(msg::ping & msg) -> maybe_sendable {
+        return msg::send(msg::pong::make(std::move(msg)));
+    }
+
+    /*! \brief Process a heartbeat response. */
+    auto operator()(msg::pong &) -> maybe_sendable {
+        return boost::none;
+    }
+
+    /*! \brief Process a work request.
+     *
+     * The request is passed to the worker, and the reply
+     */
+    auto operator()(msg::request & msg) -> maybe_sendable {
+        return work(std::move(msg));
+    }
+
+    /*! \brief Process a work reply. */
+    auto operator()(msg::reply &) -> maybe_sendable {
+        logger->warn("Recieved unexpected reply");
+        return boost::none;
+    }
+    /*! \brief Process a reconnect message. */
+    auto operator()(msg::reconnect &) -> maybe_sendable {
+        return register_worker();
     }
 };
