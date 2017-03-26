@@ -7,3 +7,6 @@
 [submodule "submodules/spdlog"]
 	path = submodules/spdlog
 	url = https://github.com/gabime/spdlog.git
+[submodule "submodules/lmdbxx"]
+	path = submodules/lmdbxx
+	url = https://github.com/bendiken/lmdbxx.git

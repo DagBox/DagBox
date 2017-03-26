@@ -24,6 +24,9 @@ add_doxygen(./Doxyfile
 # Add the logging library
 include_directories(./submodules/spdlog/include)
 
+# Add a C++11 wrapper for lmdb
+include_directories(./submodules/lmdbxx)
+
 include_directories(/usr/local/include)
 link_directories(/usr/local/lib)
 
