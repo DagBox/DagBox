@@ -18,44 +18,49 @@
  */
 #pragma once
 
-#include <mutex>
 #include <vector>
 #include <boost/optional.hpp>
+#include <boost/filesystem.hpp>
 #include <zmq.hpp>
 #include <msgpack.hpp>
 #include <lmdb++.h>
 #include "../message.hpp"
 
+namespace filesystem = boost::filesystem;
+
 
 namespace datastore
 {
-    namespace detail
+    /*! \brief An LMDB storage environment.
+     *
+     * This class is a
+     * [lmdb::env](http://lmdbxx.sourceforge.net/classlmdb_1_1env.html),
+     * which opens itself automatically when created.
+     */
+    class storage : public lmdb::env
     {
-        class storage
-        {
-            std::mutex static init;
-            boost::optional<lmdb::env> static env_maybe;
-            auto static get_env() -> lmdb::env &;
-        protected:
-            lmdb::env & env = get_env();
-        };
+    public:
+        storage(filesystem::path const & directory);
     };
 
 
-    class reader : private detail::storage
+    class reader
     {
+        storage & env;
     public:
         std::string const service_name = "datastore reader";
-        reader();
+        reader(storage & env);
         auto operator()(msg::request && request) -> std::vector<zmq::message_t>;
     };
 
 
-    class writer : private detail::storage
+    class writer
     {
+        storage & env;
+        lmdb::dbi dbi;
     public:
         std::string const service_name;
-        writer(std::string const & bucket_name);
+        writer(storage & env, std::string const & bucket_name);
         auto operator()(msg::request && request) -> std::vector<zmq::message_t>;
     };
 };
