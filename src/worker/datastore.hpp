@@ -44,9 +44,14 @@ namespace datastore
     };
 
 
+    /*! \brief A reader that can read from any bucket.
+     */
     class reader
     {
         storage & env;
+        std::unordered_map<std::string, lmdb::dbi> buckets;
+
+        auto get_open_bucket(std::string bucket_name) -> lmdb::dbi &;
     public:
         std::string const service_name = "datastore reader";
         reader(storage & env);
@@ -54,10 +59,12 @@ namespace datastore
     };
 
 
+    /*! \brief A datatore writer that writes to a single bucket.
+     */
     class writer
     {
         storage & env;
-        lmdb::dbi dbi;
+        lmdb::dbi bucket;
     public:
         std::string const service_name;
         writer(storage & env, std::string const & bucket_name);
