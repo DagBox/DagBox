@@ -24,6 +24,9 @@
 #include <zmq.hpp>
 #include <msgpack.hpp>
 #include <lmdb++.h>
+#include "../msgpack_boost_flatmap.hpp"
+#include <boost/container/flat_map.hpp>
+#include <msgpack/adaptor/boost/optional.hpp>
 #include "../message.hpp"
 
 namespace filesystem = boost::filesystem;
@@ -44,6 +47,22 @@ namespace datastore
     };
 
 
+    namespace detail {
+        namespace container=boost::container;
+
+        struct read_request
+        {
+            std::string bucket;
+            std::string key;
+            boost::optional<std::string> data;
+
+            // Boost map that allows incomplete types
+            container::flat_map<std::string, read_request> relations;
+
+            MSGPACK_DEFINE_MAP(bucket, key, data, relations);
+        };
+    };
+
     /*! \brief A reader that can read from any bucket.
      */
     class reader
@@ -51,7 +70,10 @@ namespace datastore
         storage & env;
         std::unordered_map<std::string, lmdb::dbi> buckets;
 
-        auto get_open_bucket(std::string bucket_name) -> lmdb::dbi &;
+        auto get_open_bucket(std::string bucket_name, lmdb::txn & txn)
+            -> lmdb::dbi &;
+        auto fill_read_request(detail::read_request & req,
+                               lmdb::txn & txn) -> void;
     public:
         std::string const service_name = "datastore reader";
         reader(storage & env);
@@ -65,6 +87,9 @@ namespace datastore
     {
         storage & env;
         lmdb::dbi bucket;
+        auto static open(storage & env,
+                         std::string const & bucket_name)
+            -> lmdb::dbi;
     public:
         std::string const service_name;
         writer(storage & env, std::string const & bucket_name);
