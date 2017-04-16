@@ -20,19 +20,17 @@
 
 #include <vector>
 #include <boost/optional.hpp>
+#include <boost/uuid/random_generator.hpp>
 #include <boost/filesystem.hpp>
 #include <zmq.hpp>
 #include <msgpack.hpp>
 #include <lmdb++.h>
-#include "../msgpack_boost_flatmap.hpp"
-#include <boost/container/flat_map.hpp>
-#include <msgpack/adaptor/boost/optional.hpp>
 #include "../message.hpp"
 
 namespace filesystem = boost::filesystem;
 
 
-namespace datastore
+namespace data
 {
     /*! \brief An LMDB storage environment.
      *
@@ -47,52 +45,46 @@ namespace datastore
     };
 
 
-    namespace detail {
-        namespace container=boost::container;
-
-        struct read_request
-        {
-            std::string bucket;
-            std::string key;
-            boost::optional<std::string> data;
-
-            // Boost map that allows incomplete types
-            container::flat_map<std::string, read_request> relations;
-
-            MSGPACK_DEFINE_MAP(bucket, key, data, relations);
-        };
-    };
-
-    /*! \brief A reader that can read from any bucket.
+    /*! \brief The base class for all data storing components.
      */
-    class reader
+    class datastore
     {
         storage & env;
+    protected:
         std::unordered_map<std::string, lmdb::dbi> buckets;
 
         auto get_open_bucket(std::string bucket_name, lmdb::txn & txn)
             -> lmdb::dbi &;
-        auto fill_read_request(detail::read_request & req,
-                               lmdb::txn & txn) -> void;
+        auto virtual process_request(msgpack::object_handle & req,
+                                     lmdb::txn & txn)
+            -> msgpack::sbuffer = 0;
     public:
         std::string const service_name = "datastore reader";
-        reader(storage & env);
+        datastore(storage & env);
         auto operator()(msg::request && request) -> std::vector<zmq::message_t>;
     };
 
 
-    /*! \brief A datatore writer that writes to a single bucket.
+    /*! \brief A datatore reader.
      */
-    class writer
+    class reader : public datastore
     {
-        storage & env;
-        lmdb::dbi bucket;
-        auto static open(storage & env,
-                         std::string const & bucket_name)
-            -> lmdb::dbi;
+        auto process_request(msgpack::object_handle & req, lmdb::txn & txn)
+            -> msgpack::sbuffer override;
     public:
-        std::string const service_name;
-        writer(storage & env, std::string const & bucket_name);
-        auto operator()(msg::request && request) -> std::vector<zmq::message_t>;
+        using datastore::datastore;
+    };
+
+
+    /*! \brief A datatore writer.
+     */
+    class writer : public datastore
+    {
+        boost::uuids::basic_random_generator<boost::mt19937> key_generator;
+
+        auto process_request(msgpack::object_handle & req, lmdb::txn & txn)
+            -> msgpack::sbuffer override;
+    public:
+        using datastore::datastore;
     };
 };

@@ -17,9 +17,14 @@
   License along with DagBox.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "datastore.hpp"
-using namespace datastore;
+#include "../msgpack_boost_flatmap.hpp"
+#include <boost/container/flat_map.hpp>
+#include <boost/uuid/uuid.hpp>
+#include <msgpack/adaptor/boost/optional.hpp>
+using namespace data;
 
 namespace container=boost::container;
+namespace uuid=boost::uuids;
 
 
 storage::storage(filesystem::path const & directory)
@@ -39,12 +44,12 @@ auto open_bucket(lmdb::txn & txn, const std::string & bucket_name)
 
 
 
-reader::reader(storage & env)
+datastore::datastore(storage & env)
     : env(env)
 {}
 
 
-auto reader::get_open_bucket(std::string bucket_name, lmdb::txn & txn)
+auto datastore::get_open_bucket(std::string bucket_name, lmdb::txn & txn)
     -> lmdb::dbi &
 {
     try {
@@ -57,53 +62,79 @@ auto reader::get_open_bucket(std::string bucket_name, lmdb::txn & txn)
 }
 
 
-auto reader::operator()(msg::request && request) -> std::vector<zmq::message_t>
+auto datastore::operator()(msg::request && request) -> std::vector<zmq::message_t>
 {
     auto txn = lmdb::txn::begin(env);
     for (auto & data : request.data()) {
         msgpack::object_handle req_obj = msgpack::unpack(data.data<char>(), data.size());
-        auto req = req_obj.get().as<detail::read_request>();
-        fill_read_request(req, txn);
-        msgpack::sbuffer buffer(data.size() * 2);
-        msgpack::pack(buffer, req);
+        auto buffer = process_request(req_obj, txn);
+        // TODO: Create a subclass of zmq::message_t that can be used
+        // as a buffer for msgpack
         data.rebuild(buffer.data(), buffer.size());
     }
     txn.commit();
-}
-
-
-auto reader::fill_read_request(detail::read_request & req, lmdb::txn & txn)
-    -> void
-{
-    auto & bucket = get_open_bucket(req.bucket, txn);
-    auto status = bucket.get(txn, req.key, req.data);
-    assert(status); // TODO: Throw an exception if we can't find the key
-    for (auto & rel : req.relations) {
-        fill_read_request(rel.second, txn);
-    }
+    return msg::send(msg::reply::make(std::move(request)));
 }
 
 
 
 
-writer::writer(storage & env, std::string const & bucket_name)
-    : env(env),
-      bucket(open(env, bucket_name)),
-      service_name("datastore writer <" + bucket_name + ">")
-{}
-
-
-auto writer::open(storage & env, std::string const & bucket_name)
-    -> lmdb::dbi
+struct read_request
 {
-    auto txn = lmdb::txn::begin(env);
-    auto bucket = open_bucket(txn, bucket_name);
-    txn.commit();
-    return bucket;
+    std::string bucket;
+    std::string key;
+    boost::optional<std::string> data;
+
+    // Boost map that allows incomplete types
+    container::flat_map<std::string, read_request> relations;
+
+    MSGPACK_DEFINE_MAP(bucket, key, data, relations);
+};
+
+
+auto reader::process_request(msgpack::object_handle & req, lmdb::txn & txn)
+    -> msgpack::sbuffer
+{
+    // An anonymous function, hidden here to avoid declaring it inside
+    // the header while still writing it recursively
+    std::function<void(read_request &)> process;
+    process = [&](read_request & request) {
+        auto & bucket = get_open_bucket(request.bucket, txn);
+        auto status = bucket.get(txn, request.key, request.data);
+        assert(status); // TODO: Throw an exception if we can't find the key
+        for (auto & rel : request.relations) {
+            process(rel.second);
+        }
+    };
+
+    auto request = req.get().as<read_request>();
+    process(request);
+    msgpack::sbuffer buffer;
+    msgpack::pack(buffer, request);
+    return buffer;
 }
 
 
-auto writer::operator()(msg::request && request) -> std::vector<zmq::message_t>
-{
+
 
+struct write_request
+{
+    std::string bucket;
+    std::string data;
+
+    MSGPACK_DEFINE_MAP(bucket, data);
+};
+
+
+auto writer::process_request(msgpack::object_handle & req, lmdb::txn & txn)
+    -> msgpack::sbuffer
+{
+    auto request = req.get().as<write_request>();
+    auto & bucket = get_open_bucket(request.bucket, txn);
+    auto key = key_generator();
+    bucket.put(txn, key.data, request.data);
+
+    msgpack::sbuffer buffer;
+    msgpack::pack(buffer, key.data);
+    return buffer;
 }
