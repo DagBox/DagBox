@@ -25,7 +25,10 @@
 auto test_datastore = [](){
     describe("datastore", [](){
         describe("writer", [](){
-            data::storage store(filesystem::path("/tmp/testdir"));
+            auto testdir = filesystem::temp_directory_path() / filesystem::unique_path();
+            filesystem::create_directory(testdir);
+
+            data::storage store(testdir);
             data::writer writer(store);
             data::reader reader(store);
 
