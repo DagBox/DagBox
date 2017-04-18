@@ -22,6 +22,7 @@
 #include "message.hpp"
 #include "broker.hpp"
 #include "assistant.hpp"
+#include "datastore.hpp"
 
 
 go_bandit([](){
@@ -29,6 +30,7 @@ go_bandit([](){
     test_message();
     test_broker();
     test_assistant();
+    test_datastore();
 });
 
 
