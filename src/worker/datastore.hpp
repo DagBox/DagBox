@@ -41,6 +41,7 @@ namespace data
     class storage : public lmdb::env
     {
     public:
+        const static uint_fast8_t max_buckets = 32;
         storage(filesystem::path const & directory);
     };
 

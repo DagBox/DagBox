@@ -30,6 +30,7 @@ namespace uuid=boost::uuids;
 storage::storage(filesystem::path const & directory)
     : env(lmdb::env::create())
 {
+    set_max_dbs(max_buckets);
     open(directory.c_str());
 }
 
