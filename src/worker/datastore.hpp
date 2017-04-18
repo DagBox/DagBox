@@ -60,7 +60,7 @@ namespace data
                                      lmdb::txn & txn)
             -> msgpack::sbuffer = 0;
     public:
-        std::string const service_name = "datastore reader";
+        std::string const service_name = "datastore";
         datastore(storage & env);
         auto operator()(msg::request && request) -> std::vector<zmq::message_t>;
     };
@@ -73,6 +73,7 @@ namespace data
         auto process_request(msgpack::object_handle & req, lmdb::txn & txn)
             -> msgpack::sbuffer override;
     public:
+        std::string const service_name = "datastore reader";
         using datastore::datastore;
     };
 
@@ -86,6 +87,7 @@ namespace data
         auto process_request(msgpack::object_handle & req, lmdb::txn & txn)
             -> msgpack::sbuffer override;
     public:
+        std::string const service_name = "datastore writer";
         using datastore::datastore;
     };
 };
