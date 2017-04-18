@@ -309,7 +309,7 @@ namespace msg
             auto address() const noexcept -> boost::optional<msg::address>;
             auto address(msg::address const & addr) -> void;
 
-            friend class sender;
+            friend struct sender;
         };
     };
 
@@ -361,7 +361,7 @@ namespace msg
         }
 
         friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
-        friend class detail::sender;
+        friend struct detail::sender;
     };
 
 
@@ -402,7 +402,7 @@ namespace msg
         }
 
         friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
-        friend class detail::sender;
+        friend struct detail::sender;
         friend class pong;
         friend class reconnect;
     };
@@ -442,7 +442,7 @@ namespace msg
         }
 
         friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
-        friend class detail::sender;
+        friend struct detail::sender;
     };
 
 
@@ -560,7 +560,7 @@ namespace msg
         }
 
         friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
-        friend class detail::sender;
+        friend struct detail::sender;
         friend class reply;
     };
 
@@ -654,7 +654,7 @@ namespace msg
         }
 
         friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
-        friend class detail::sender;
+        friend struct detail::sender;
     };
 
     /*! \brief A re-connect message signalling a worker to re-register.
@@ -686,6 +686,6 @@ namespace msg
         auto static make(ping && p) noexcept -> reconnect;
 
         friend auto read(std::vector<zmq::message_t> && parts) -> any_message;
-        friend class detail::sender;
+        friend struct detail::sender;
     };
 };
