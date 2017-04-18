@@ -35,13 +35,6 @@ storage::storage(filesystem::path const & directory)
 }
 
 
-auto open_bucket(lmdb::txn & txn, const std::string & bucket_name)
-    -> lmdb::dbi
-{
-    auto dbi = lmdb::dbi::open(txn, bucket_name.c_str());
-    return dbi;
-}
-
 
 
 
@@ -56,8 +49,12 @@ auto datastore::get_open_bucket(std::string bucket_name, lmdb::txn & txn)
     try {
         return buckets.at(bucket_name);
     } catch (std::out_of_range) {
-        auto result = buckets.emplace(bucket_name,
-                                      open_bucket(txn, bucket_name));
+        auto result = buckets.emplace(
+            bucket_name,
+            lmdb::dbi::open(
+                txn,
+                bucket_name.c_str(),
+                bucket_open_flags()));
         return result.first->second; // first is the iterator, iterator's second is the dbi
     }
 }
@@ -116,6 +113,10 @@ auto reader::process_request(msgpack::object_handle & req, lmdb::txn & txn)
 }
 
 
+auto reader::bucket_open_flags() const -> unsigned int { return lmdb::dbi::default_flags; }
+auto reader::txn_begin_flags() const -> unsigned int { return MDB_RDONLY; }
+
+
 
 
 struct write_request
@@ -139,3 +140,7 @@ auto writer::process_request(msgpack::object_handle & req, lmdb::txn & txn)
     msgpack::pack(buffer, key.data);
     return buffer;
 }
+
+
+auto writer::bucket_open_flags() const -> unsigned int { return MDB_CREATE; }
+auto writer::txn_begin_flags() const -> unsigned int { return lmdb::txn::default_flags; }

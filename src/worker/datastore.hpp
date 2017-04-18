@@ -59,6 +59,8 @@ namespace data
         auto virtual process_request(msgpack::object_handle & req,
                                      lmdb::txn & txn)
             -> msgpack::sbuffer = 0;
+        auto virtual bucket_open_flags() const -> unsigned int = 0;
+        auto virtual txn_begin_flags() const -> unsigned int = 0;
     public:
         std::string const service_name = "datastore";
         datastore(storage & env);
@@ -72,6 +74,8 @@ namespace data
     {
         auto process_request(msgpack::object_handle & req, lmdb::txn & txn)
             -> msgpack::sbuffer override;
+        auto bucket_open_flags() const -> unsigned int override;
+        auto txn_begin_flags() const -> unsigned int override;
     public:
         std::string const service_name = "datastore reader";
         using datastore::datastore;
@@ -86,6 +90,8 @@ namespace data
 
         auto process_request(msgpack::object_handle & req, lmdb::txn & txn)
             -> msgpack::sbuffer override;
+        auto bucket_open_flags() const -> unsigned int override;
+        auto txn_begin_flags() const -> unsigned int override;
     public:
         std::string const service_name = "datastore writer";
         using datastore::datastore;
