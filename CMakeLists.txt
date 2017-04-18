@@ -30,6 +30,9 @@ include_directories(./submodules/lmdbxx)
 include_directories(/usr/local/include)
 link_directories(/usr/local/lib)
 
+# Find Boost
+find_package(Boost COMPONENTS system filesystem)
+
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
