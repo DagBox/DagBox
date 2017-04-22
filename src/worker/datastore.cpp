@@ -21,6 +21,7 @@
 #include <boost/container/flat_map.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <msgpack/adaptor/boost/optional.hpp>
+#include <boost/uuid/uuid_io.hpp>
 using namespace data;
 
 namespace container=boost::container;
@@ -98,7 +99,9 @@ auto reader::process_request(msgpack::object_handle & req, lmdb::txn & txn)
     std::function<void(read_request &)> process;
     process = [&](read_request & request) {
         auto & bucket = get_open_bucket(request.bucket, txn);
-        auto status = bucket.get(txn, request.key, request.data);
+        lmdb::val value, key(request.key);
+        auto status = bucket.get(txn, key, value);
+        request.data = std::string(value.data(), value.size());
         assert(status); // TODO: Throw an exception if we can't find the key
         for (auto & rel : request.relations) {
             process(rel.second);
@@ -134,10 +137,15 @@ auto writer::process_request(msgpack::object_handle & req, lmdb::txn & txn)
     auto request = req.get().as<write_request>();
     auto & bucket = get_open_bucket(request.bucket, txn);
     auto key = key_generator();
-    bucket.put(txn, key.data, request.data);
+    std::stringstream sb;
+    sb << key;
+    auto s = sb.str();
+
+    std::cout << request.data << std::endl; //TODO:REMOVE
+    bucket.put(txn, s.c_str(), request.data.c_str());
 
     msgpack::sbuffer buffer;
-    msgpack::pack(buffer, key.data);
+    msgpack::pack(buffer, s);
     return buffer;
 }
 
