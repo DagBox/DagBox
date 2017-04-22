@@ -53,7 +53,7 @@ class broker
     auto const static socket_type = zmq::socket_type::router;
     std::chrono::milliseconds const worker_timeout;
     int run_max_wait_ms = 200;
-    socket sock;
+    class socket sock;
     std::queue<msg::part_source> send_queue;
 
     std::unordered_map<msg::address, worker> workers;

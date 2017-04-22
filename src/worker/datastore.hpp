@@ -22,8 +22,11 @@
 #include <boost/optional.hpp>
 #include <boost/uuid/random_generator.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/container/flat_map.hpp>
 #include <zmq.hpp>
 #include <msgpack.hpp>
+#include "../msgpack_boost_flatmap.hpp"
+#include <msgpack/adaptor/boost/optional.hpp>
 #include <lmdb++.h>
 #include "../message.hpp"
 
@@ -32,6 +35,31 @@ namespace filesystem = boost::filesystem;
 
 namespace data
 {
+    namespace detail
+    {
+        namespace container=boost::container;
+
+        struct read_request
+        {
+            std::string bucket;
+            std::string key;
+            boost::optional<std::string> data;
+
+            // Boost map that allows incomplete types
+            container::flat_map<std::string, read_request> relations;
+
+            MSGPACK_DEFINE_MAP(bucket, key, data, relations);
+        };
+
+        struct write_request
+        {
+            std::string bucket;
+            std::string data;
+
+            MSGPACK_DEFINE_MAP(bucket, data);
+        };
+    };
+
     /*! \brief An LMDB storage environment.
      *
      * This class is a

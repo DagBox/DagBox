@@ -27,6 +27,7 @@ using namespace bandit;
 using namespace snowhouse;
 
 #include <zmq.hpp>
+#include <msgpack.hpp>
 
 
 
@@ -48,4 +49,24 @@ auto msg_vec(std::initializer_list<std::string> msgs)
         }
     }
     return vec;
+}
+
+
+// Turn an object to a string using msgpack
+template <class T>
+auto dumps(T t) -> std::string
+{
+    std::stringstream s;
+    msgpack::pack(s, t);
+    return s.str();
+}
+
+
+template <class T, class S>
+auto loads(S & str_like) -> T
+{
+    msgpack::object_handle h = msgpack::unpack(
+        static_cast<char *>(str_like.data()),
+        str_like.size());
+    return h.get().as<T>();
 }

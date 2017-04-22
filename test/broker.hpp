@@ -30,7 +30,7 @@ auto test_broker = [](){
         std::string br_addr = "inproc://test";
         component<broker> broker_component(ctx, br_addr, std::chrono::milliseconds{1000});
 
-        socket sock(ctx, zmq::socket_type::dealer);
+        class socket sock(ctx, zmq::socket_type::dealer);
         // Setting a timeout on the socket so that the tests don't
         // hang indefinitely
         sock.setsockopt(ZMQ_RCVTIMEO, 500); // in ms

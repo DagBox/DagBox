@@ -17,14 +17,12 @@
   License along with DagBox.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "datastore.hpp"
-#include "../msgpack_boost_flatmap.hpp"
-#include <boost/container/flat_map.hpp>
+#include <sstream>
 #include <boost/uuid/uuid.hpp>
-#include <msgpack/adaptor/boost/optional.hpp>
 #include <boost/uuid/uuid_io.hpp>
 using namespace data;
+using namespace detail;
 
-namespace container=boost::container;
 namespace uuid=boost::uuids;
 
 
@@ -78,18 +76,6 @@ auto datastore::operator()(msg::request && request) -> std::vector<zmq::message_
 
 
 
-struct read_request
-{
-    std::string bucket;
-    std::string key;
-    boost::optional<std::string> data;
-
-    // Boost map that allows incomplete types
-    container::flat_map<std::string, read_request> relations;
-
-    MSGPACK_DEFINE_MAP(bucket, key, data, relations);
-};
-
 
 auto reader::process_request(msgpack::object_handle & req, lmdb::txn & txn)
     -> msgpack::sbuffer
@@ -122,14 +108,6 @@ auto reader::txn_begin_flags() const -> unsigned int { return MDB_RDONLY; }
 
 
 
-struct write_request
-{
-    std::string bucket;
-    std::string data;
-
-    MSGPACK_DEFINE_MAP(bucket, data);
-};
-
 
 auto writer::process_request(msgpack::object_handle & req, lmdb::txn & txn)
     -> msgpack::sbuffer
@@ -141,7 +119,6 @@ auto writer::process_request(msgpack::object_handle & req, lmdb::txn & txn)
     sb << key;
     auto s = sb.str();
 
-    std::cout << request.data << std::endl; //TODO:REMOVE
     bucket.put(txn, s.c_str(), request.data.c_str());
 
     msgpack::sbuffer buffer;

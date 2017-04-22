@@ -37,7 +37,7 @@ auto test_assistant() -> void {
     describe("assistant", [](){
         zmq::context_t ctx;
         std::string addr = "inproc://test_assistant";
-        socket sock(ctx, zmq::socket_type::router);
+        class socket sock(ctx, zmq::socket_type::router);
         sock.setsockopt(ZMQ_RCVTIMEO, 4000); // in ms
         sock.bind(addr);
 

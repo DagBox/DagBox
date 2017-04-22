@@ -27,8 +27,8 @@ auto test_socket = [](){
     zmq::context_t context;
 
     describe("socket", [&](){
-        socket server(context, zmq::socket_type::pair);
-        socket client(context, zmq::socket_type::pair);
+        class socket server(context, zmq::socket_type::pair);
+        class socket client(context, zmq::socket_type::pair);
         server.bind("inproc://test-socket");
         client.connect("inproc://test-socket");
 

@@ -52,7 +52,7 @@ class assistant
     }
 
     worker work;
-    socket sock;
+    class socket sock;
     std::shared_ptr<spdlog::logger> logger; // = spdlog::stdout_color_st(work.service_name + " assistant");
 public:
     /*! \brief Create an assistant that runs `worker`.

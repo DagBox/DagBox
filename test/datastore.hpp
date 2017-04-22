@@ -33,15 +33,39 @@ auto test_datastore = [](){
             data::reader reader(store);
 
             it("can write data", [&](){
-                auto reply_msg = msg::read(writer(msg::request::make(
+                data::detail::write_request wreq = {
+                    .bucket = "users",
+                    .data = "test_data",
+                };
+                auto write_msg = msg::read(writer(msg::request::make(
                                                       "datastore writer", {},
-                                                      // A write request, inserting "test_user_data" into bucket "users"
-                                                      msg_vec({"‚¦bucket¥users¤data®test_user_data"}))));
-                auto & reply = boost::get<msg::reply>(reply_msg);
+                                                      // A write request, inserting "test_data" into bucket "users"
+                                                      msg_vec({dumps(wreq)}))));
+                auto & write_reply = boost::get<msg::reply>(write_msg);
                 // Inserted 1 object, we should get back 1 key
-                AssertThat(reply.data(), HasLength(1));
+                AssertThat(write_reply.data(), HasLength(1));
                 // Make sure the key is not empty
-                AssertThat(reply.data()[0].size(), IsGreaterThan<unsigned int>(0));
+                AssertThat(write_reply.data()[0].size(), IsGreaterThan<unsigned int>(0));
+                auto key = loads<std::string>(write_reply.data()[0]);
+
+                data::detail::read_request rreq = {
+                    .bucket = "users",
+                    .key = key,
+                    .data = boost::none,
+                    .relations = {},
+                };
+                auto read_msg = msg::read(reader(msg::request::make(
+                                                     "datastore reader", {},
+                                                     // A read request that will try to read the data we just inserted
+                                                     msg_vec({dumps(rreq)}))));
+                auto & read_reply_msg = boost::get<msg::reply>(read_msg);
+                // Requested only 1 object
+                AssertThat(read_reply_msg.data(), HasLength(1));
+                // Check if the data we have read is correct
+                auto read_reply = loads<data::detail::read_request>(read_reply_msg.data()[0]);
+                AssertThat(read_reply.bucket, Equals("users"));
+                AssertThat(read_reply.key, Equals(key));
+                AssertThat(*read_reply.data, Equals("test_data"));
             });
         });
     });
