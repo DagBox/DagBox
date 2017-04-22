@@ -61,7 +61,7 @@ auto datastore::get_open_bucket(std::string bucket_name, lmdb::txn & txn)
 
 auto datastore::operator()(msg::request && request) -> std::vector<zmq::message_t>
 {
-    auto txn = lmdb::txn::begin(env);
+    auto txn = lmdb::txn::begin(env, nullptr, txn_begin_flags());
     for (auto & data : request.data()) {
         msgpack::object_handle req_obj = msgpack::unpack(data.data<char>(), data.size());
         auto buffer = process_request(req_obj, txn);
