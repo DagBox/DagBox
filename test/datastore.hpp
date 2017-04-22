@@ -25,7 +25,7 @@
 auto test_datastore = [](){
     describe("datastore", [](){
         describe("writer", [](){
-            auto testdir = filesystem::temp_directory_path() / filesystem::unique_path();
+            auto testdir = filesystem::temp_directory_path() / filesystem::unique_path("DagBox-test-%%%%-%%%%-%%%%-%%%%");
             filesystem::create_directory(testdir);
 
             data::storage store(testdir);
