@@ -2,7 +2,7 @@
 # https://github.com/github/gitignore
 
 # Generated docs
-docs/
+documentation/
 
 # Prerequisites
 *.d

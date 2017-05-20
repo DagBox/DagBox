@@ -19,7 +19,7 @@ include(DoxygenTargets)
 add_doxygen(./Doxyfile
   OUTPUT_DIRECTORY "docs"
   DOC_TARGET "docs"
-  NO_PDF)
+  )
 
 # Add the logging library
 include_directories(./submodules/spdlog/include)

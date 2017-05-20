@@ -372,7 +372,7 @@ namespace msg
      * workers are still alive, but may be sent by the workers as
      * well.
      *
-     * The recipient of the message must reply with a [pong}(\ref pong)
+     * The recipient of the message must reply with a [pong](\ref pong)
      * message.
      */
     class ping

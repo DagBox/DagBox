@@ -1,0 +1,13 @@
+div.contents {
+    max-width: 45em;
+}
+
+div.image {
+    max-width: 42em;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+div.image > * {
+    width: 100%;
+}
