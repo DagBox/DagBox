@@ -43,7 +43,9 @@ namespace lock
     {
         std::unordered_set<std::string> locks;
     public:
+        /*! \brief Service name. */
         std::string const service_name = "lock";
+        /*! \brief Process a request message containing a lock request. */
         auto operator()(msg::request && request) -> std::vector<zmq::message_t>;
     };
 };

@@ -26,8 +26,14 @@
 #include "socket.hpp"
 #include "helpers.hpp"
 
+/*! \file assistant.hpp
+ * Assistant class for running workers.
+ */
 
+
+/*! \brief A multi-part message that is ready to be sent over a socket. */
 typedef std::vector<zmq::message_t> sendable;
+/*! \brief A sendable message that may or may not exist. */
 typedef boost::optional<sendable> maybe_sendable;
 
 
@@ -35,10 +41,9 @@ typedef boost::optional<sendable> maybe_sendable;
  *
  * Creates a socket, and handles sending pings to avoid timeouts.
  *
- * The `worker` class should be a visitor that can visit the message
- * classes, see [broker](\ref broker) for an example, or for the documentation
- * [boost::variant](http://www.boost.org/doc/libs/1_63_0/doc/html/variant.html).
- * The worker should return a `boost::optional<std::vector<zmq::message_t>>`.
+ * The `worker` class must have a public constructor, a member
+ * `std::string const service_name` and a method `operator()(msg::request && request) -> std::vector<zmq::message_t>`.
+ * See [datastore](\ref data::datastore) for an example.
  */
 template <class worker>
 class assistant
@@ -53,10 +58,15 @@ class assistant
 
     worker work;
     class socket sock;
-    std::shared_ptr<spdlog::logger> logger; // = spdlog::stdout_color_st(work.service_name + " assistant");
+    std::shared_ptr<spdlog::logger> logger = spdlog::stdout_color_st(work.service_name + " assistant");
 public:
-    /*! \brief Create an assistant that runs `worker`.
+    /*! \brief Create an assistant that runs the `worker`.
      *
+     * \param ctx 0MQ context the assistant will run in.
+     * \param broker_addr The address of the broker the assistant
+     * should connect to.
+     * \param worker_timeout Time in miliseconds the broker will
+     * consider a worker dead if there hasn't been any communication.
      * \param args The arguments to be passed to the constructor of
      * the worker.
      */
@@ -77,6 +87,14 @@ public:
         sock.send_multimsg(register_worker());
     }
 
+    /*! \brief Run the worker for one iteration.
+     *
+     * The assistant will first try to accept a message from the
+     * broker. If the message is a request then it will be passed to
+     * the worker, otherwise it will be handled by the assistant.
+     * Depending on the message, the assistant may or may not send a
+     * message in response.
+     */
     auto run() -> void {
         auto received = sock.recv_multimsg();
         if (received.size() == 0) {
@@ -108,10 +126,7 @@ public:
         return boost::none;
     }
 
-    /*! \brief Process a work request.
-     *
-     * The request is passed to the worker, and the reply
-     */
+    /*! \brief Process a work request. */
     auto operator()(msg::request & msg) -> maybe_sendable {
         return work(std::move(msg));
     }

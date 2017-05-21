@@ -36,8 +36,11 @@ using std::end;
 
 
 
-/*! A ZeroMQ socket that can recieve messages containing multiple
- *  parts.
+/*! 0MQ socket that can send and receive multi-part messages.
+ *
+ * 0MQ messages can be composed of multiple parts. This is an
+ * extension over base 0MQ socket that can send and receive these
+ * multi-part messages easily.
  */
 class socket : public zmq::socket_t
 {
@@ -46,10 +49,16 @@ public:
     using socket_t::socket_t;
 
     /*! \brief Recieve a message that has multiple parts as a stream.
+     *
+     * \returns Parts of the message that was received. If the socket
+     * was configured to time out, the vector may be empty.
      */
     auto recv_multimsg() -> std::vector<zmq::message_t>;
 
     /*! \brief Send a message that has multiple parts.
+     *
+     * \param cont A container of any type that yields message parts
+     * when iterated. For example, a `std::vector<zmq::message_t>`.
      */
     template <class container>
     auto send_multimsg(container && cont) -> void

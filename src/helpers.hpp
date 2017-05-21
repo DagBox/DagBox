@@ -23,6 +23,12 @@
 #include <atomic>
 
 
+/*! \file helpers.hpp
+ * Small classes and utilities that don't fit in other files.
+ */
+
+
+
 namespace detail_time
 {
     typedef std::chrono::steady_clock clock;
@@ -48,6 +54,11 @@ class component
     std::thread thread;
     std::atomic_bool condition;
 public:
+    /*! \brief Create a component.
+     *
+     * \param args These arguments will be directly passed to the
+     * constructor of class `C`.
+     */
     template <class ...Args> component(Args && ... args)
         : condition(true)
     {

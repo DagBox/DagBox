@@ -247,6 +247,8 @@ namespace msg
      * message should be considered invalid and should not be accessed
      * in any way.
      *
+     * \param msg The message to be sent.
+     *
      * \returns A pair of iterators. The first iterator is the
      * beginning iterator, the second one is the end.
      */
@@ -342,8 +344,6 @@ namespace msg
     public:
         /*! \brief Create a service registration message.
          *
-         * \param addr The address of the broker.
-         *
          * \param service_name The name of the service the worker can
          * provide.
          */
@@ -356,6 +356,7 @@ namespace msg
             return std::string(service_.data<char>(), service_.size());
         }
 
+        /*! \brief Get the address of the sender. */
         auto inline address() const noexcept -> boost::optional<msg::address> {
             return head.address();
         }
@@ -391,12 +392,10 @@ namespace msg
 
         enum detail::types static const type = detail::types::ping;
     public:
-        /*! \brief Create a heartbeat message.
-         *
-         * \param addr The address of the broker.
-         */
+        /*! \brief Create a heartbeat message. */
         auto static make() noexcept -> ping;
 
+        /*! \brief Get the address of the sender. */
         auto inline address() const noexcept -> boost::optional<msg::address> {
             return head.address();
         }
@@ -432,11 +431,11 @@ namespace msg
     public:
         /*! \brief Create a response for a heartbeat message.
          *
-         * When a [ping](\ref ping) is recieved, it can be passed to
-         * this function to create a reply for it.
+         * \param p The received ping this pong will be replying to.
          */
         auto static make(ping && p) noexcept -> pong;
 
+        /*! \brief Get the address of the sender. */
         auto inline address() const noexcept -> boost::optional<msg::address> {
             return head.address();
         }
@@ -495,8 +494,6 @@ namespace msg
     public:
         /*! \brief Create a new request.
          *
-         * \param addr The address of the broker.
-         *
          * \param service_name The name of the service the request
          * will be sent to.
          *
@@ -535,18 +532,23 @@ namespace msg
             return data_;
         }
 
+        /*! \brief Get the name of the service the request was sent to. */
         auto inline service() const noexcept -> std::string {
             return std::string(service_.data<char>(), service_.size());
         }
 
+        /*! \brief Get the address of the sender. */
         auto inline address() const noexcept -> boost::optional<msg::address> {
             return head.address();
         }
 
+        /*! \brief Change the address of the sender. */
         auto inline address(msg::address const & addr) -> void {
             head.address(addr);
         }
 
+        /*! \brief Get the address of the client that originally sent
+         *  the request. */
         auto inline client() const noexcept -> boost::optional<msg::address> {
             if (client_) {
                 return std::string(client_->data<char>(), client_->size());
@@ -555,6 +557,8 @@ namespace msg
             }
         }
 
+        /*! \brief Set the address of the client that originally sent
+         *  the request. */
         auto inline client(msg::address const & addr) noexcept -> void {
             client_ = part(addr.data(), addr.size());
         }
@@ -633,14 +637,17 @@ namespace msg
             return data_;
         }
 
+        /*! \brief Get the address of the sender. */
         auto inline address() const noexcept -> boost::optional<msg::address> {
             return head.address();
         }
 
+        /*! \brief Change the address of the sender. */
         auto inline address(msg::address const & addr) -> void {
             head.address(addr);
         }
 
+        /*! \brief Get the destination of the reply. */
         auto inline client() const noexcept -> boost::optional<msg::address> {
             if (client_) {
                 return std::string(client_->data<char>(), client_->size());
@@ -649,6 +656,7 @@ namespace msg
             }
         }
 
+        /*! \brief Set the destination of the reply. */
         auto inline client(msg::address const & addr) noexcept -> void {
             client_ = part(addr.data(), addr.size());
         }
@@ -682,6 +690,8 @@ namespace msg
         enum detail::types static const type = detail::types::reconnect;
     public:
         /*! \brief Create a message signalling a worker to re-register.
+         *
+         * \param p The unexpected ping message that was sent to the broker.
          */
         auto static make(ping && p) noexcept -> reconnect;
 

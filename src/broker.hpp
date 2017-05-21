@@ -52,6 +52,9 @@ class broker
     std::string const addr;
     auto const static socket_type = zmq::socket_type::router;
     std::chrono::milliseconds const worker_timeout;
+    // The number of miliseconds the broker should wait at most for a
+    // new message to arrive. `component` class will have to wait at
+    // most this many miliseconds before terminating the broker.
     int run_max_wait_ms = 200;
     class socket sock;
     std::queue<msg::part_source> send_queue;
@@ -77,6 +80,18 @@ public:
     /*! \brief Process a reconnect message. */
     auto operator()(msg::reconnect    & msg) -> void;
 
+    /*! \brief Create a message broker.
+     *
+     * \param ctx The 0MQ context the broker should run in.
+     * \param addr The address the broker should bind to. All
+     * workers must connect to this address.
+     * \param worker_timeout The time in miliseconds after which
+     * the broker should consider a worker dead if there hasn't
+     * been any response. The workers should be configured with
+     * a worker timeout that is less than this number. This
+     * number should be larger than the time it would reasonably
+     * take for a request to complete.
+     */
     broker(zmq::context_t & ctx,
            std::string const & addr,
            std::chrono::milliseconds worker_timeout);

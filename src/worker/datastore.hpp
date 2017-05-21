@@ -32,7 +32,14 @@
 
 namespace filesystem = boost::filesystem;
 
+/*! \file datastore.hpp
+ * Key-value storage worker and related utilities.
+ */
 
+
+
+/*! \brief Key-value storage worker and related utilities.
+ */
 namespace data
 {
     namespace detail
@@ -69,29 +76,96 @@ namespace data
     class storage : public lmdb::env
     {
     public:
+        /*! \brief Maximum number of buckets that can be opened. */
         const static uint_fast8_t max_buckets = 32;
+        /*! \brief Create a data storage.
+         *
+         * \param directory The directory where data will be stored.
+         * Will be automatically created if it is missing. The program
+         * must have write permissions in the given directory.
+         */
         storage(filesystem::path const & directory);
     };
 
 
-    /*! \brief The base class for all data storing components.
+    /*! \brief The base class for all key-value storage workers.
+     *
+     * Provides various utilities for accessing key-value
+     * [storage](\ref storage). Requests and replies are expected to
+     * be serialized with messagepack. Child classes must override the
+     * protected functions provided here to implement their own
+     * functionality.
+     *
+     * This class also implements the required interface for
+     * [assistant](\ref assistant), thus the classes that inherit it
+     * will be compatible with assistant.
      */
     class datastore
     {
         storage & env;
-    protected:
         std::unordered_map<std::string, lmdb::dbi> buckets;
-
+    protected:
+        /*! \brief Get a bucket.
+         *
+         * If the bucket doesn't exist, it will be created. If it does
+         * exist but it hasn't been opened yet, it will be
+         * opened. In any case, the existing open bucket will be returned.
+         *
+         * \param bucket_name The name of the requested bucket. Any
+         * string may be used, subject to limitations of LMDB.
+         * \param txn The current transaction.
+         */
         auto get_open_bucket(std::string bucket_name, lmdb::txn & txn)
             -> lmdb::dbi &;
+        /*! \brief Process a request and return a response.
+         *
+         * Child classes must override this method to provide their
+         * own request processing behaviour. The datastore will handle
+         * details such as de-serializing of the request and opening
+         * an LMDB transaction.
+         *
+         * \param req The request that needs to be processed.
+         * \param txn The current transaction that has been opened for
+         * this request.
+         */
         auto virtual process_request(msgpack::object_handle & req,
                                      lmdb::txn & txn)
             -> msgpack::sbuffer = 0;
+        /*! \brief The flags that should be used when opening buckets.
+         *
+         * The datastore will open LMDB databases using the flags
+         * returned by this function.  See the flags in [LMDB's
+         * documentation](http://www.lmdb.tech/doc/group__mdb.html#gac08cad5b096925642ca359a6d6f0562a)
+         * for possible values this function may return.
+         */
         auto virtual bucket_open_flags() const -> unsigned int = 0;
+        /*! \brief The flags that should be used when starting transactions .
+         *
+         * The datastore will start LMDB transactions using the flags
+         * returned by this function.  See the flags in [LMDB's
+         * documentation](http://www.lmdb.tech/doc/group__mdb.html#gad7ea55da06b77513609efebd44b26920)
+         * for possible values this function may return.
+         */
         auto virtual txn_begin_flags() const -> unsigned int = 0;
     public:
+        /*! \brief The name of the service.
+        *
+        * Inheriting classes may override this name with a name of
+        * their choice.
+        */
         std::string const service_name = "datastore";
+        /*! \brief Create a datastore worker.
+         *
+         * \param env Storage that the datastore worker will use.
+         */
         datastore(storage & env);
+        /*! \brief Process a data storage request.
+         *
+         * \param request A request message for data storage.
+         *
+         * \returns A reply message that contains the response to the
+         * requst, ready to be sent.
+         */
         auto operator()(msg::request && request) -> std::vector<zmq::message_t>;
     };
 
