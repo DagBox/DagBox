@@ -23,6 +23,7 @@
 #include "broker.hpp"
 #include "assistant.hpp"
 #include "datastore.hpp"
+#include "lock.hpp"
 
 
 go_bandit([](){
@@ -31,6 +32,7 @@ go_bandit([](){
     test_broker();
     test_assistant();
     test_datastore();
+    test_lock();
 });
 
 
