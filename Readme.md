@@ -69,7 +69,7 @@ make test-coverage
 This will generate a summary of the test coverage. See
 `coverage/index.html`.
 
-# Documentation
+# Building Documentation
 
 You will need Doxygen and LaTeX to build the documentation. Once the
 requirements are installed, run:
