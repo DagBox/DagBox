@@ -56,8 +56,8 @@ You can also run `make help` to see what targets are available to be built.
 To build and run the tests:
 
 ```
-make tests  # build
-make test   # run
+make test-build
+make test
 ```
 
 To see the code coverage, run:
