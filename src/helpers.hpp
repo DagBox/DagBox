@@ -53,6 +53,10 @@ class component
 {
     std::thread thread;
     std::atomic_bool condition;
+
+    // Components can't be trivially copied
+    component(component const &) = delete;
+    auto operator=(component const &) -> component & = delete;
 public:
     /*! \brief Create a component.
      *
@@ -68,6 +72,18 @@ public:
                 comp.run();
             }
         });
+    }
+
+    component(component && c) noexcept
+    {
+        condition.store(c.condition);
+        thread = std::move(c.thread);
+    }
+
+    auto operator=(component && c) noexcept -> component &
+    {
+        condition.store(c.condition);
+        thread = std::move(c.thread);
     }
 
     ~component()
